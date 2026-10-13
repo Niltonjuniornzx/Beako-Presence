@@ -1,0 +1,11 @@
+*.exe
+*.dll
+*.pdb
+compilacao.log
+bin/
+obj/
+sessions/
+cache/
+*.tmp
+.vs/
+.vscode/
