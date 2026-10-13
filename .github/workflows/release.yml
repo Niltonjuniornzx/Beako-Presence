@@ -36,9 +36,9 @@ jobs:
           $tag = "${{ github.ref_name }}"
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag Beako-Presence-Windows.zip SHA256.txt --clobber
+            gh release upload $tag BeakoPresence.exe Beako-Presence-Windows.zip SHA256.txt --clobber
           } else {
-            gh release create $tag Beako-Presence-Windows.zip SHA256.txt --title "Beako Presence $tag" --generate-notes --verify-tag
+            gh release create $tag BeakoPresence.exe Beako-Presence-Windows.zip SHA256.txt --title "Beako Presence $tag" --generate-notes --verify-tag
           }
           if ($LASTEXITCODE -ne 0) { throw 'Falha ao publicar os arquivos da release' }
       - name: Upload build artifact
@@ -46,5 +46,6 @@ jobs:
         with:
           name: Beako-Presence-Windows
           path: |
+            BeakoPresence.exe
             Beako-Presence-Windows.zip
             SHA256.txt
