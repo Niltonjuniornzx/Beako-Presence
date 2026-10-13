@@ -1,0 +1,32 @@
+name: Build Windows
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile .NET Framework executable
+        shell: pwsh
+        run: |
+          $fx = "$env:WINDIR\Microsoft.NET\Framework\v4.0.30319"
+          $compiler = Join-Path $fx 'csc.exe'
+          if (!(Test-Path $compiler)) { throw 'Compilador csc.exe nao encontrado' }
+          & $compiler /noconfig /nostdlib+ /nologo /codepage:65001 /utf8output /target:winexe /optimize+ /platform:anycpu /win32icon:BeakoPresence.ico /out:BeakoPresenceAnime.exe "/reference:$fx\mscorlib.dll" "/reference:$fx\System.dll" "/reference:$fx\System.Core.dll" "/reference:$fx\System.Windows.Forms.dll" "/reference:$fx\System.Drawing.dll" "/reference:$fx\System.Web.Extensions.dll" BeakoPresence.cs
+          if ($LASTEXITCODE -ne 0) { throw "Falha na compilacao ($LASTEXITCODE)" }
+      - name: SHA256
+        shell: pwsh
+        run: |
+          (Get-FileHash BeakoPresenceAnime.exe -Algorithm SHA256).Hash + '  BeakoPresenceAnime.exe' | Out-File -Encoding ascii SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Beako-Presence-Windows
+          path: |
+            BeakoPresenceAnime.exe
+            SHA256.txt
+          if-no-files-found: error
