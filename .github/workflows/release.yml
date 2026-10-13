@@ -1,0 +1,43 @@
+name: Release Windows
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Beako Presence
+        shell: pwsh
+        run: |
+          $fx = "$env:WINDIR\Microsoft.NET\Framework\v4.0.30319"
+          $compiler = Join-Path $fx 'csc.exe'
+          if (!(Test-Path $compiler)) { throw 'Compilador C# nao encontrado' }
+          & $compiler /noconfig /nostdlib+ /nologo /codepage:65001 /utf8output /target:winexe /optimize+ /platform:anycpu /win32icon:BeakoPresence.ico /out:BeakoPresence.exe "/reference:$fx\mscorlib.dll" "/reference:$fx\System.dll" "/reference:$fx\System.Core.dll" "/reference:$fx\System.Windows.Forms.dll" "/reference:$fx\System.Drawing.dll" "/reference:$fx\System.Web.Extensions.dll" BeakoPresence.cs
+          if ($LASTEXITCODE -ne 0) { throw 'Falha na compilacao' }
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item BeakoPresence.exe dist/
+          Copy-Item BeakoPresence-Avatar.png dist/
+          Compress-Archive -Path dist/* -DestinationPath Beako-Presence-Windows.zip -Force
+          (Get-FileHash Beako-Presence-Windows.zip -Algorithm SHA256).Hash + '  Beako-Presence-Windows.zip' | Set-Content -Encoding ascii SHA256.txt
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release create "${{ github.ref_name }}" Beako-Presence-Windows.zip SHA256.txt --title "Beako Presence ${{ github.ref_name }}" --generate-notes --verify-tag
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Beako-Presence-Windows
+          path: |
+            Beako-Presence-Windows.zip
+            SHA256.txt
