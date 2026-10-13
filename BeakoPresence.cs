@@ -686,8 +686,8 @@ class BeakoPresence : DarkWindow {
             }
             try {
                 string folder = Path.Combine(Root, "sessions", game.Id); string target = Path.GetFullPath(Path.Combine(folder, game.Exe.Replace('/', Path.DirectorySeparatorChar)));
-                if (!target.StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !SafeExe(game.Exe)) throw new IOException("Executável inválido.");
-                Directory.CreateDirectory(Path.GetDirectoryName(target)); File.Copy(Application.ExecutablePath, target, true);
+                if (!SafeExe(game.Exe) || !target.StartsWith(Path.GetFullPath(folder) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) throw new IOException("Executável inválido.");
+                // A simulacao usa uma copia identificavel do Beako Presence; nao altera executaveis de jogos instalados.\n                Directory.CreateDirectory(Path.GetDirectoryName(target)); File.Copy(Application.ExecutablePath, target, true);
                 Process child = Process.Start(new ProcessStartInfo(target, "--process \"" + game.Name.Replace("\"", "'").TrimEnd('\\') + "\" " + game.Id + " " + Process.GetCurrentProcess().Id) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(target) });
                 if (child == null) throw new IOException("Processo não iniciado.");
                 running.Add(game.Id, child); started.Add(game.Id, DateTime.Now); runningNames[game.Id] = game.Name; count++;
