@@ -1,0 +1,135 @@
+name: Publicar Beako Presence (Windows e Linux)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.ref == 'refs/heads/main' &&
+       github.event.head_commit.message == 'release: publish Windows 3.6.1 and Linux 3.7.3')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar repositorio
+        uses: actions/checkout@v4
+
+      - name: Validar arquivos definitivos
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n linux/instalar.sh
+          bash -n linux/testar.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          required = [
+              "windows/BeakoPresence.exe",
+              "windows/BeakoPresence.cs",
+              "windows/BeakoPresence.ico",
+              "windows/BeakoPresence-Avatar.png",
+              "windows/catalog.json",
+              "linux/beako.py",
+              "linux/instalar.sh",
+              "linux/testar.sh",
+              "linux/data/catalog.json",
+              "linux/assets/avatar.png",
+          ]
+          for name in required:
+              p = Path(name)
+              if not p.is_file() or p.stat().st_size == 0:
+                  raise SystemExit("Arquivo obrigatorio ausente/vazio: " + name)
+          if not Path("windows/BeakoPresence.exe").read_bytes().startswith(b"MZ"):
+              raise SystemExit("Executavel Windows invalido: cabecalho MZ ausente")
+          compile(Path("linux/beako.py").read_text(encoding="utf-8"), "linux/beako.py", "exec")
+          for name in ("linux/instalar.sh", "linux/testar.sh"):
+              if b"\r" in Path(name).read_bytes():
+                  raise SystemExit("Script Linux com CRLF: " + name)
+          print("Fontes e recursos definitivos verificados")
+          PY
+
+      - name: Preparar pacotes originais
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          from shutil import copy2
+          from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
+
+          dist = Path("dist")
+          dist.mkdir(exist_ok=True)
+
+          archives = {
+              "windows": "Beako-Presence-Windows-3.6.1.zip",
+              "linux": "Beako-Presence-Linux-3.7.3.zip",
+          }
+
+          for dirname, filename in archives.items():
+              source = Path(dirname)
+              files = sorted(p for p in source.rglob("*") if p.is_file())
+              with ZipFile(dist / filename, "w", compression=ZIP_DEFLATED, compresslevel=8) as output:
+                  for path in files:
+                      rel = path.relative_to(source).as_posix()
+                      mode = 0o755 if rel.endswith(".sh") else 0o644
+                      entry = ZipInfo(rel)
+                      entry.create_system = 3
+                      entry.external_attr = (0o100000 | mode) << 16
+                      entry.compress_type = ZIP_DEFLATED
+                      output.writestr(entry, path.read_bytes())
+
+              with ZipFile(dist / filename) as archived:
+                  assert archived.testzip() is None, "ZIP corrompido: " + filename
+                  assert sorted(archived.namelist()) == sorted(
+                      p.relative_to(source).as_posix() for p in files
+                  ), "Arquivos faltando no ZIP: " + filename
+                  for path in files:
+                      rel = path.relative_to(source).as_posix()
+                      assert archived.read(rel) == path.read_bytes(), "Arquivo alterado: " + rel
+              print(filename, len(files), "arquivos, todos iguais aos originais")
+
+          copy2("windows/BeakoPresence.exe", dist / "BeakoPresence-Windows-3.6.1.exe")
+          with (dist / "SHA256SUMS.txt").open("w", encoding="ascii") as output:
+              for path in sorted(dist.iterdir()):
+                  if path.name == "SHA256SUMS.txt":
+                      continue
+                  output.write(hashlib.sha256(path.read_bytes()).hexdigest() + "  " + path.name + "\n")
+          PY
+
+      - name: Publicar no GitHub Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG=$(printf '%s' "$GITHUB_REF" | sed 's@^refs/tags/@@')
+          else
+            TAG="v3.7.3"
+          fi
+          TITLE="Beako Presence — Windows 3.6.1 / Linux 3.7.3"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "$TAG" dist/* \
+              --target "$GITHUB_SHA" \
+              --title "$TITLE" \
+              --notes-file RELEASE_NOTES.md \
+              --latest
+          fi
+          gh release view "$TAG" --json url,assets --jq '{url: .url, files: [.assets[].name]}'
+
+      - name: Disponibilizar pacotes no Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: Beako-Presence-Windows-3.6.1-Linux-3.7.3
+          path: dist/*
+          if-no-files-found: error

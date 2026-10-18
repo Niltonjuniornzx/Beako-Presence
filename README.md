@@ -1,10 +1,21 @@
 # Beako Presence
 
-Versões definitivas enviadas pelo autor:
+Versões definitivas fornecidas pelo autor, mantidas separadas no mesmo repositório:
 
-- **Windows 3.6.1** — arquivos em [windows/](windows/). Para executar, mantenha a pasta completa e abra `BeakoPresence.exe` (requer .NET Framework 4.8). O fonte está em `windows/BeakoPresence.cs`.
-- **Linux 3.7.3** — arquivos em [linux/](linux/). Extraia a pasta completa e execute `bash instalar.sh` dentro dela. Requer Python 3.9+, Tkinter e Bash.
+- **Windows 3.6.1** — [arquivos do Windows](windows/), incluindo `BeakoPresence.exe`, código C#, ícones e catálogo offline.
+- **Linux 3.7.3** — [arquivos do Linux](linux/), incluindo `beako.py`, `instalar.sh`, ícones e catálogo offline.
 
-Os arquivos foram importados diretamente dos pacotes finais, preservando os recursos, ícones e catálogos offline de cada versão. Veja `windows/LEIA-ME.txt` e `linux/README.md` para instruções próprias das aplicações.
+## Download
 
-Catálogo online: [DCGames](https://github.com/Niltonjuniornzx/dcgames).
+**[Abrir a release oficial — Windows 3.6.1 / Linux 3.7.3](https://github.com/Niltonjuniornzx/Beako-Presence/releases/tag/v3.7.3)**
+
+Arquivos publicados automaticamente pelo GitHub Actions:
+
+- `Beako-Presence-Windows-3.6.1.zip` — pacote completo para Windows; após extrair, abra `BeakoPresence.exe`.
+- `Beako-Presence-Linux-3.7.3.zip` — pacote completo para Linux; após extrair, execute `bash instalar.sh`.
+- `BeakoPresence-Windows-3.6.1.exe` — executável Windows separado (recomendamos o ZIP com os recursos).
+- `SHA256SUMS.txt` — hashes para conferência dos arquivos.
+
+O processo de publicação **não recompila nem altera os programas definitivos**: valida os arquivos no repositório e publica ZIPs contendo cópias exatas. O executável Windows não possui assinatura digital.
+
+Catálogo principal: [DCGames](https://github.com/Niltonjuniornzx/dcgames). Veja também [instruções Windows](windows/LEIA-ME.txt) e [instruções Linux](linux/README.md).
