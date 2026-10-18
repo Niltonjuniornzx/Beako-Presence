@@ -1,0 +1,21 @@
+Beako Presence Windows 3.6.1
+
+Extraia todos os arquivos e abra BeakoPresence.exe.
+Requer Windows com .NET Framework 4.8.
+
+Interface no estilo da versão Linux: fundo escuro, verde, lista horizontal,
+seleção à direita, painéis Jogos marcados/Atividades e botões alinhados.
+DB principal: https://raw.githubusercontent.com/Niltonjuniornzx/dcgames/main/data/catalog.json
+Catálogo incluído para a primeira abertura sem internet.
+A versão Windows lista registros com executável Windows válido.
+Busca por nome ou caminho do executável, sem limite de 500 resultados.
+Os caminhos relativos completos são preservados ao iniciar os processos.
+
+Compilação e carregamento do catálogo testados; interface aberta e renderizada.
+A detecção de atividades pelo Discord não foi testada nesta entrega.
+O executável não possui assinatura digital.
+
+Código-fonte e COMPILAR.bat incluídos. A compilação usa o compilador do .NET Framework.
+
+Ícones 3.6.1: consulta pública pelo ID do aplicativo no Discord, carregamento assíncrono com duas consultas simultâneas e cache em %LOCALAPPDATA%/BeakoPresence/icons. Sem ícone ou sem rede, mostra iniciais. Não requer token. Ícones PNG personalizados podem ser colocados em icons/ID_DO_JOGO.png ao lado do executável.
+Validado download e renderização do ícone do Valorant. Outros aplicativos dependem da disponibilidade do endpoint público.

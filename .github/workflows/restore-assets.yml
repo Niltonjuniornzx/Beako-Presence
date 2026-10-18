@@ -1,0 +1,63 @@
+name: Finalizar arquivos das versoes definitivas
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.upload_parts/**'
+      - '.github/workflows/restore-assets.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Restaurar arquivos originais
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import zlib
+
+          def join_parts(folder):
+              parts = sorted(Path(folder).glob("part*.bin"))
+              if not parts:
+                  raise RuntimeError("Partes ausentes: " + folder)
+              return b"".join(p.read_bytes() for p in parts)
+
+          avatar = join_parts(".upload_parts/avatar")
+          catalog = zlib.decompress(join_parts(".upload_parts/catalog"))
+          expected = {
+              "avatar": "065030fd64afc287124810c9ebe03434027a3b6928483f9619dc7bfa356819fa",
+              "catalog": "17326918cbf6150cb4cdc687b4d8321a718622779b6b5477236d17331cada782",
+          }
+          for name, raw in (("avatar", avatar), ("catalog", catalog)):
+              digest = hashlib.sha256(raw).hexdigest()
+              if digest != expected[name]:
+                  raise RuntimeError(name + " diferente do ZIP original: " + digest)
+
+          Path("windows/BeakoPresence-Avatar.png").write_bytes(avatar)
+          Path("windows/catalog.json").write_bytes(catalog)
+          Path("linux/data/catalog.json").write_bytes(catalog)
+          print("Restaurados os tres arquivos com hashes conferidos.")
+          PY
+      - name: Verificar scripts Linux
+        shell: bash
+        run: |
+          python3 -m py_compile linux/beako.py
+          bash -n linux/instalar.sh
+          bash -n linux/testar.sh
+      - name: Publicar arquivos completos e eliminar partes temporarias
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f windows/BeakoPresence-Avatar.png windows/catalog.json linux/data/catalog.json
+          git rm -r .upload_parts
+          git commit -m "assets: restaurar arquivos definitivos das versoes 3.6.1 e 3.7.3"
+          git push origin HEAD:main
