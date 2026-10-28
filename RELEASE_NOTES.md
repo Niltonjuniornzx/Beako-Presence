@@ -1,17 +1,17 @@
-# Beako Presence v3.8.0 — Windows 3.6.8 / Linux 3.7.3
+# Beako Presence v3.8.1 — Windows 3.6.9 / Linux 3.7.3
 
-## Windows 3.6.8
+## Windows 3.6.9
 
 - A checagem de versão do Windows agora acontece automaticamente ao iniciar; a opção manual foi removida da interface.
-- `BeakoPresence-Windows-3.6.8.exe` grava um log detalhado e mostra a causa real se a instalação falhar, em vez de apenas uma mensagem genérica.
-- O instalador pergunta se pode fechar o aplicativo que estiver aberto.
+- O instalador foi refeito para instalar diretamente no próprio `.exe`, sem iniciar um PowerShell oculto para copiar os arquivos.
+- Valida o pacote, cria os atalhos e registra a desinstalação; se a cópia falhar, restaura os arquivos anteriores e apresenta o erro detalhado com o caminho do log.
 - O assistente visual oferece boas-vindas, opções de atalhos, progresso e confirmação; instala por usuário e não exige administrador nem o ZIP.
 - O ZIP também inclui INSTALAR.bat para reinstalar manualmente e DESINSTALAR.bat como alternativa.
 - O atualizador baixa a release, valida o SHA-256, atualiza após fechar o app e o reabre; configurações, cache e logs são preservados.
 - Catálogo atualizado com dados oficiais do Discord e caminhos comunitários documentados.
 - Inclui a correção Steam do EA SPORTS FC 27 desta cópia.
 
-Para instalar, baixe e abra `BeakoPresence-Windows-3.6.8.exe`. O ZIP completo é opcional e inclui código-fonte e arquivos de apoio. Para remover, use Beako Presence > Desinstalar no menu Iniciar ou execute `DESINSTALAR.bat`. Requer Windows com .NET Framework 4.8.
+Para instalar, baixe e abra `BeakoPresence-Windows-3.6.9.exe`. O ZIP completo é opcional e inclui código-fonte e arquivos de apoio. Para remover, use Beako Presence > Desinstalar no menu Iniciar ou execute `DESINSTALAR.bat`. Requer Windows com .NET Framework 4.8.
 
 ## Linux 3.7.3
 
