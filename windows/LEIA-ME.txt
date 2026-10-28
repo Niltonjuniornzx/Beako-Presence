@@ -1,15 +1,48 @@
-Beako Presence Windows 3.6.1
+Beako Presence Windows 3.6.2
 
 Extraia todos os arquivos e abra BeakoPresence.exe.
 Requer Windows com .NET Framework 4.8.
 
 Interface no estilo da versão Linux: fundo escuro, verde, lista horizontal,
 seleção à direita, painéis Jogos marcados/Atividades e botões alinhados.
-DB principal: https://raw.githubusercontent.com/Niltonjuniornzx/dcgames/main/data/catalog.json
+Catálogo oficial: https://discord.com/api/v10/applications/detectable
 Catálogo incluído para a primeira abertura sem internet.
-A versão Windows lista registros com executável Windows válido.
-Busca por nome ou caminho do executável, sem limite de 500 resultados.
-Os caminhos relativos completos são preservados ao iniciar os processos.
+O Windows usa os nomes e caminhos de executável registrados pelo Discord, mesmo
+quando diferem do nome do jogo. Se houver várias variantes, inicia cada nome
+registrado; só a primeira abre a janela do Beako. Jogos sem executável Windows na
+lista oficial aparecem na busca. A lista comunitária em community-paths.json
+complementa alguns caminhos confirmados, inclusive alguns ausentes da lista
+oficial. Esses caminhos vieram de relatos sobre Quests do Discord e podem ter
+requisitos adicionais; não são garantia universal de atividade. Nomes/caminhos
+sem fonte oficial ou comunitária não são inventados. Exceção: EA SPORTS FC 27
+usa o mapeamento local EA SPORTS FC 27/FC27.exe, pois a lista oficial do Discord
+mostra o jogo sem executáveis Windows. O Discord pode não reconhecer essa
+simulação como atividade; a detecção deve ser confirmada no cliente.
+Correção FC 27 (método Steam da r/DiscordQuests): ao iniciar a sessão do FC 27,
+o app cria appmanifest_4080220.acf + steamapps\common\EA SPORTS FC 27\ na Steam,
+compila um FC27.exe minúsculo com janela nativa "EA SPORTS FC 27" (igual ao
+método manual) e roda; se a Steam estiver aberta, ela é reaberta em segundo
+plano para reler o manifest. Ao parar a sessão, fechar a janela dela ou fechar
+o app, remove o que criou. Manifest de jogo comprado (com InstalledDepots)
+nunca é alterado. Em máquina sem Steam, cria a mesma estrutura no caminho
+padrão (C:\Program Files (x86)\Steam) e grava o ponteiro SteamPath no registro
+do usuário; nesse caso execute o app como administrador e a detecção não é
+garantida. Se a atividade não aparecer no Discord, saia do Discord pela
+bandeja e reabra. Busca por nome ou executável.
+
+Ferramentas no painel direito:
+- Logs: abre %LOCALAPPDATA%\BeakoPresence\beako.log, com o histórico do app
+  (catálogo, sessões, correção FC 27, erros). Acima de 512 KB o log antigo
+  vira beako.log.old automaticamente.
+- Diagnóstico: mostra a versão do app, se o Discord está aberto, a raiz da
+  Steam em uso, o manifest, o FC27.exe (presente e em execução), o ponteiro
+  SteamPath do registro, as sessões ativas e as últimas linhas do log.
+O app confere em segundo plano, toda vez que inicia, se há uma versão Windows
+mais recente publicada no GitHub (Niltonjuniornzx/Beako-Presence). Se encontrar
+uma, avisa na tela. A atualização continua manual: esta cópia inclui a correção
+do FC 27, que a versão oficial não tem; substituir pelo executável oficial
+remove o recurso.
+Fontes e licença do suplemento estão em COMMUNITY-PATHS-SOURCE.txt.
 
 Compilação e carregamento do catálogo testados; interface aberta e renderizada.
 A detecção de atividades pelo Discord não foi testada nesta entrega.
@@ -19,3 +52,4 @@ Código-fonte e COMPILAR.bat incluídos. A compilação usa o compilador do .NET
 
 Ícones 3.6.1: consulta pública pelo ID do aplicativo no Discord, carregamento assíncrono com duas consultas simultâneas e cache em %LOCALAPPDATA%/BeakoPresence/icons. Sem ícone ou sem rede, mostra iniciais. Não requer token. Ícones PNG personalizados podem ser colocados em icons/ID_DO_JOGO.png ao lado do executável.
 Validado download e renderização do ícone do Valorant. Outros aplicativos dependem da disponibilidade do endpoint público.
+

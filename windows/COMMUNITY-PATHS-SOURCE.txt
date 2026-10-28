@@ -1,0 +1,18 @@
+Supplemental game paths
+
+Source file:
+https://github.com/Sinnisterly/DiscordQuestCompleter/blob/main/dqc/data/overrides.json
+
+The file is a community-maintained index of paths reported working for Discord
+Quests. It supplements the official Discord detectable-applications API and is
+not an official Discord source. Some entries have Quest-specific requirements;
+see the note fields in community-paths.json.
+
+Upstream project license: GNU General Public License v3.0
+https://github.com/Sinnisterly/DiscordQuestCompleter/blob/main/LICENSE
+A copy of that license is included as COMMUNITY-PATHS-LICENSE.txt.
+
+Beako uses the name, path and alternate-path fields. The supplement is optional:
+the program continues using the official Discord catalog if it is missing or
+cannot be refreshed.
+

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -20,9 +20,9 @@ using System.Runtime.InteropServices;
 [assembly: System.Reflection.AssemblyCopyright("Copyright © 2026 Beako")]
 [assembly: System.Reflection.AssemblyTrademark("")]
 [assembly: System.Reflection.AssemblyCulture("")]
-[assembly: System.Reflection.AssemblyVersion("3.6.1.0")]
-[assembly: System.Reflection.AssemblyFileVersion("3.6.1.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("3.6.1")]
+[assembly: System.Reflection.AssemblyVersion("3.6.2.0")]
+[assembly: System.Reflection.AssemblyFileVersion("3.6.2.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("3.6.2")]
 
 static class Skin {
     public static readonly Color Background = Color.FromArgb(13, 15, 17);
@@ -358,7 +358,8 @@ class GamePicker : Control {
                 TextRenderer.DrawText(g, "● ATIVO", pillFont, pill, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             }
             TextRenderer.DrawText(g, game.Name, nameFont, new Rectangle(rect.X + 12, rect.Y + 91, rect.Width - 24, 22), Skin.Text, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
-            TextRenderer.DrawText(g, game.Exe, smallFont, new Rectangle(rect.X + 12, rect.Y + 112, rect.Width - 24, 18), Skin.Muted, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+            string exeDetail = game.EstimatedExe ? "Sem executável Windows na lista do Discord" : game.CommunityPath ? "Caminho comunidade: " + game.Exe : game.Exes != null && game.Exes.Length > 1 ? game.Exe + " · +" + (game.Exes.Length - 1) + " nomes oficiais" : game.Exe;
+            TextRenderer.DrawText(g, exeDetail, smallFont, new Rectangle(rect.X + 12, rect.Y + 112, rect.Width - 24, 18), game.EstimatedExe ? Skin.Muted : Skin.Green, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
             string line = live ? "Ativo agora" : picked ? "Selecionado" : "Clique para selecionar";
             TextRenderer.DrawText(g, line, smallFont, new Rectangle(rect.X + 12, rect.Y + 134, rect.Width - 24, 18), live || picked ? Skin.Green : Color.FromArgb(104, 112, 126), TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
             if (Focused && ShowFocusCues && i == keyboardIndex) using (Pen pen = new Pen(Color.FromArgb(140, 255, 255, 255)) { DashStyle = DashStyle.Dot }) using (GraphicsPath ring = Skin.Round(new Rectangle(rect.X + 3, rect.Y + 3, rect.Width - 6, rect.Height - 6), 10)) g.DrawPath(pen, ring);
@@ -394,7 +395,7 @@ class GamePicker : Control {
             }
             int x = 70; int width = Math.Max(1, bounds.Width - x - 48);
             TextRenderer.DrawText(e.Graphics, game.Name, nameFont, new Rectangle(x, bounds.Y + 14, width, 22), Skin.Text, TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
-            string detail = Subtitle != null ? Subtitle(game) : live ? "Processo ativo" : game.Exe;
+            string detail = Subtitle != null ? Subtitle(game) : live ? "Processo ativo" : game.EstimatedExe ? "Sem executável Windows na lista do Discord" : game.CommunityPath ? "Caminho comunidade: " + game.Exe : game.Exes != null && game.Exes.Length > 1 ? game.Exe + " · +" + (game.Exes.Length - 1) + " nomes oficiais" : game.Exe;
             TextRenderer.DrawText(e.Graphics, detail ?? "", smallFont, new Rectangle(x, bounds.Y + 38, width, 20), live || Compact ? Skin.Green : Skin.Muted, TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
             if (Focused && ShowFocusCues && i == keyboardIndex) using (Pen pen = new Pen(Color.FromArgb(120, 255, 255, 255)) { DashStyle = DashStyle.Dot }) e.Graphics.DrawRectangle(pen, bounds.X + 3, bounds.Y + 3, bounds.Width - 7, bounds.Height - 7);
         }
@@ -403,12 +404,76 @@ class GamePicker : Control {
 
 }
 
-class Game { public string Id, Name, Exe, IconHash; public override string ToString() { return Name; } }
+class Game { public string Id, Name, Exe, IconHash; public string[] Exes; public bool EstimatedExe, CommunityPath; public override string ToString() { return Name; } }
 class BeakoPresence : DarkWindow {
     static readonly string Root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BeakoPresence");
+    // ---- Log ----
+    // Eventos do app (catalogo, sessoes, correcao FC 27, erros) vao para
+    // %LOCALAPPDATA%\BeakoPresence\beako.log, girando para .old acima de 512 KB.
+    static readonly object LogLock = new object();
+    static string LogPath { get { return Path.Combine(Root, "beako.log"); } }
+    static void Log(string message) {
+        try {
+            lock (LogLock) {
+                Directory.CreateDirectory(Root);
+                if (File.Exists(LogPath)) {
+                    try { if (new FileInfo(LogPath).Length > 524288) { string old = LogPath + ".old"; if (File.Exists(old)) File.Delete(old); File.Move(LogPath, old); } } catch { }
+                }
+                File.AppendAllText(LogPath, "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "] " + message + "\r\n", new System.Text.UTF8Encoding(false));
+            }
+        } catch { /* Log nunca pode derrubar o app. */ }
+    }
+    // ---- Diagnóstico ----
+    // Mesmo formato do FC27-DIAGNOSTICO.bat, integrado ao app: versão, Discord,
+    // estrutura Steam do FC 27, registro, sessões ativas e cauda do log.
+    string BuildDiagnostics() {
+        System.Text.StringBuilder b = new System.Text.StringBuilder();
+        b.AppendLine("=== Diagnóstico Beako Presence (FC 27 / appid " + Fc27AppId + ") ===");
+        b.AppendLine("Versão do app: " + System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3));
+        bool discord = false;
+        try { discord = Process.GetProcessesByName("Discord").Length > 0; } catch { }
+        b.AppendLine(discord ? "[OK]   Discord aberto" : "[!!]   Discord NÃO aberto (abra o Discord desktop)");
+        string steam = SteamRootPath();
+        b.AppendLine(steam != null ? "[OK]   Steam em: " + steam : "[--]   Steam não encontrada no registro; estrutura usa o caminho padrão");
+        string root = Fc27Root();
+        b.AppendLine(root != null ? "[OK]   Raiz em uso para o FC 27: " + root : "[!!]   Nenhuma raiz Steam em uso (sessão FC 27 não foi iniciada)");
+        string manifest = Fc27ManifestPath();
+        string manifestText = manifest != null ? Fc27ManifestText(manifest) : null;
+        if (manifestText == null) b.AppendLine("[!!]   appmanifest_" + Fc27AppId + ".acf AUSENTE (inicie a sessão do FC 27 no app)");
+        else if (manifestText.IndexOf("InstalledDepots", StringComparison.OrdinalIgnoreCase) >= 0) b.AppendLine("[OK]   appmanifest_" + Fc27AppId + ".acf presente (jogo REAL instalado — o app não mexe nele)");
+        else b.AppendLine("[OK]   appmanifest_" + Fc27AppId + ".acf presente (criado pelo app)");
+        string exe = root == null ? null : Path.Combine(Path.Combine(Path.Combine(root, "steamapps"), "common"), Path.Combine(Fc27InstallDir, Fc27ExeName));
+        b.AppendLine(exe != null && File.Exists(exe) ? "[OK]   FC27.exe: " + exe : "[!!]   FC27.exe ausente");
+        Process[] fc27 = new Process[0];
+        try {
+            fc27 = Process.GetProcessesByName("FC27");
+            if (fc27.Length > 0) b.AppendLine("[OK]   FC27.exe em execução (PID " + fc27[0].Id + ")");
+            else b.AppendLine("[!!]   FC27.exe NÃO está em execução (inicie a sessão e deixe a janela aberta)");
+        } catch { b.AppendLine("[--]   Não foi possível verificar o FC27.exe"); }
+        finally { foreach (Process p in fc27) { try { p.Dispose(); } catch { } } }
+        string ponteiro = null;
+        try { using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Software\\Valve\\Steam")) { object v = key == null ? null : key.GetValue("SteamPath"); ponteiro = v as string; } } catch { }
+        b.AppendLine(ponteiro != null ? "[OK]   Registro HKCU SteamPath: " + ponteiro : "[--]   Sem ponteiro HKCU SteamPath (normal quando há Steam instalada)");
+        b.AppendLine(running.Count == 0 ? "[--]   Nenhuma sessão em execução" : "[OK]   Sessões ativas: " + String.Join(", ", new List<string>(runningNames.Values).ToArray()));
+        b.AppendLine();
+        b.AppendLine("Se tudo acima está [OK] e a quest não avança:");
+        b.AppendLine("  1) ACEITE a missão no Discord");
+        b.AppendLine("  2) SAIA do Discord de verdade: ícone na bandeja perto do relógio, botão direito, Sair");
+        b.AppendLine("  3) Abra o Discord de novo com a sessão do FC 27 rodando");
+        b.AppendLine("  4) Espere 1 a 2 minutos e olhe a quest de novo");
+        b.AppendLine();
+        b.AppendLine("---- últimas linhas do log (" + LogPath + ") ----");
+        try {
+            if (File.Exists(LogPath)) {
+                string[] linhas = File.ReadAllLines(LogPath);
+                for (int i = Math.Max(0, linhas.Length - 8); i < linhas.Length; i++) b.AppendLine(linhas[i]);
+            } else b.AppendLine("(log ainda vazio)");
+        } catch { b.AppendLine("(log indisponível)"); }
+        return b.ToString();
+    }
     readonly JavaScriptSerializer json = new JavaScriptSerializer { MaxJsonLength = 50000000 };
     List<Game> games = new List<Game>();
-    readonly Dictionary<string, Process> running = new Dictionary<string, Process>();
+    readonly Dictionary<string, List<Process>> running = new Dictionary<string, List<Process>>();
     readonly Dictionary<string, DateTime> started = new Dictionary<string, DateTime>();
     TextBox search = new TextBox(); GamePicker list = new GamePicker(); Label status = new Label();
     Label discordState = new Label(), catalogCount = new Label(); 
@@ -466,10 +531,257 @@ class BeakoPresence : DarkWindow {
             } finally { foreach (Process p in live.Values) try { p.Dispose(); } catch { } }
         } catch { }
     }
+    // ---- Correção EA SPORTS FC 27 (método Steam da r/DiscordQuests) ----
+    // O Discord publica o FC 27 sem executáveis Windows; a quest só é creditada
+    // quando o client enxerga o jogo instalado na Steam. Ao iniciar a sessão do
+    // FC 27 o app cria appmanifest_4080220.acf + steamapps\common\EA SPORTS FC 27\
+    // + FC27.exe e roda de lá; ao parar (ou fechar o app) remove o que criou.
+    // Manifest de jogo comprado (com InstalledDepots) nunca é tocado.
+    const string Fc27Id = "1531874756096295054";
+    const string Fc27AppId = "4080220";
+    const string Fc27InstallDir = "EA SPORTS FC 27";
+    const string Fc27ExeName = "FC27.exe";
+    static bool IsFc27Id(string id) { return id == Fc27Id || id == "community-easportsfc27"; }
+    static bool IsFc27(Game g) { return g != null && (IsFc27Id(g.Id) || NormalizeGameName(g.Name) == "easportsfc27"); }
+    static string SteamRootPath() {
+        try {
+            using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Software\\Valve\\Steam")) {
+                object v = key == null ? null : key.GetValue("SteamPath");
+                if (v is string && !String.IsNullOrWhiteSpace((string)v)) return ((string)v).Replace('/', '\\');
+            }
+            using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey("SOFTWARE\\WOW6432Node\\Valve\\Steam")) {
+                object v = key == null ? null : key.GetValue("InstallPath");
+                if (v is string && !String.IsNullOrWhiteSpace((string)v)) return ((string)v).TrimEnd('\\');
+            }
+        } catch { }
+        return null;
+    }
+    static string Fc27ManifestText(string path) {
+        try { return File.ReadAllText(path); } catch { return null; }
+    }
+    // Caminho padrão de instalação da Steam; usado para emular a estrutura
+    // em máquinas SEM Steam (o Discord consulta o mesmo caminho/registro).
+    static string Fc27DefaultRoot() { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Steam"); }
+    static string Fc27RootMarkerPath() { return Path.Combine(Root, "steamfix-root.txt"); }
+    static string Fc27Root() {
+        string steam = SteamRootPath();
+        if (steam != null) return steam;
+        try { string m = File.ReadAllText(Fc27RootMarkerPath()).Trim(); if (m.Length > 0) return m; } catch { }
+        return null;
+    }
+    static string Fc27ManifestPath() {
+        string steam = Fc27Root();
+        if (steam == null) return null;
+        return Path.Combine(Path.Combine(steam, "steamapps"), "appmanifest_" + Fc27AppId + ".acf");
+    }
+    // Cria manifest + pasta do FC 27 na Steam e devolve o FC27.exe a executar.
+    // Sem Steam na máquina: cria a estrutura no caminho padrão e registra o
+    // ponteiro SteamPath no registro do usuário (marcado para limpeza depois).
+    // Jogo comprado (manifest com InstalledDepots) nunca é tocado.
+    static string PrepareFc27SteamFix() {
+        string steam = SteamRootPath();
+        bool emulado = false;
+        if (steam == null) { steam = Fc27DefaultRoot(); emulado = true; }
+        string steamapps = Path.Combine(steam, "steamapps");
+        Directory.CreateDirectory(steamapps);
+        if (emulado) RegisterFc27EmulatedRoot(steam);
+        string manifestPath = Path.Combine(steamapps, "appmanifest_" + Fc27AppId + ".acf");
+        string text = Fc27ManifestText(manifestPath);
+        if (text != null && text.IndexOf("InstalledDepots", StringComparison.OrdinalIgnoreCase) >= 0) return null;
+        string content = "\"AppState\"\r\n{\r\n    \"appid\"\t\t\"" + Fc27AppId + "\"\r\n    \"name\"\t\t\"EA SPORTS FC\u2122 27\"\r\n    \"StateFlags\"\t\t\"4\"\r\n    \"installdir\"\t\t\"" + Fc27InstallDir + "\"\r\n}\r\n";
+        File.WriteAllText(manifestPath, content, new System.Text.UTF8Encoding(false));
+        string folder = Path.Combine(Path.Combine(steamapps, "common"), Fc27InstallDir);
+        Directory.CreateDirectory(folder);
+        return Path.Combine(folder, Fc27ExeName);
+    }
+    static void RegisterFc27EmulatedRoot(string steam) {
+        try {
+            Directory.CreateDirectory(Root);
+            using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey("Software\\Valve\\Steam")) {
+                object atual = key.GetValue("SteamPath");
+                if (atual is string && !String.IsNullOrWhiteSpace((string)atual)) return;
+                key.SetValue("SteamPath", steam.Replace('/', '\\').ToLowerInvariant());
+            }
+            File.WriteAllText(Fc27RootMarkerPath(), steam.Replace('/', '\\'), new System.Text.UTF8Encoding(false));
+        } catch { }
+    }
+    // Remove apenas o que o PrepareFc27SteamFix criou: manifest mínimo, pasta
+    // que contém somente o FC27.exe e, na raiz emulada, o ponteiro do registro
+    // e pastas que ficaram vazias. Qualquer outra coisa é preservada.
+    static void RemoveFc27SteamFix() {
+        string manifestPath = Fc27ManifestPath();
+        if (manifestPath != null && File.Exists(manifestPath)) {
+            string text = Fc27ManifestText(manifestPath);
+            if (text != null && text.IndexOf(Fc27AppId, StringComparison.Ordinal) >= 0 && text.IndexOf("InstalledDepots", StringComparison.OrdinalIgnoreCase) < 0) {
+                try { File.Delete(manifestPath); Log("FC 27: appmanifest_4080220.acf removido."); } catch { }
+            }
+        }
+        string steam = Fc27Root();
+        if (steam == null) return;
+        string folder = Path.Combine(Path.Combine(Path.Combine(steam, "steamapps"), "common"), Fc27InstallDir);
+        if (Directory.Exists(folder)) {
+            bool ours = true;
+            try {
+                foreach (FileInfo f in new DirectoryInfo(folder).GetFiles("*", SearchOption.AllDirectories))
+                    if (!f.Name.Equals(Fc27ExeName, StringComparison.OrdinalIgnoreCase)) { ours = false; break; }
+            } catch { ours = false; }
+            if (ours) { try { Directory.Delete(folder, true); Log("FC 27: pasta '" + Fc27InstallDir + "' removida da Steam."); } catch { } }
+        }
+        try {
+            string marker = Fc27RootMarkerPath();
+            if (!File.Exists(marker)) return;
+            string marcado = File.ReadAllText(marker).Trim().Replace('/', '\\').TrimEnd('\\');
+            if (!String.Equals(marcado, Fc27DefaultRoot(), StringComparison.OrdinalIgnoreCase)) return;
+            using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Software\\Valve\\Steam", true)) {
+                if (key != null) {
+                    object v = key.GetValue("SteamPath");
+                    if (v is string && ((string)v).Replace('/', '\\').Trim().TrimEnd('\\').Equals(marcado, StringComparison.OrdinalIgnoreCase)) {
+                        key.DeleteValue("SteamPath", false);
+                        bool vazia = key.SubKeyCount == 0 && key.ValueCount == 0;
+                        key.Close();
+                        if (vazia) Microsoft.Win32.Registry.CurrentUser.DeleteSubKey("Software\\Valve\\Steam", false);
+                    }
+                }
+            }
+            foreach (string dir in new[] { Path.Combine(steam, "steamapps", "common"), Path.Combine(steam, "steamapps"), steam }) {
+                if (Directory.Exists(dir) && Directory.GetFileSystemEntries(dir).Length == 0) { try { Directory.Delete(dir); } catch { break; } } else break;
+            }
+            File.Delete(marker);
+        } catch { }
+    }
+    // Sobras de crash: sem nenhum FC27.exe vivo, limpa manifest e pasta na abertura do app.
+    static void CleanupStaleFc27Fix() {
+        try {
+            bool alive = false;
+            foreach (Process p in Process.GetProcessesByName("FC27")) { alive = true; try { p.Dispose(); } catch { } }
+            if (alive) { Log("FC 27: sobras mantidas, ha FC27.exe vivo."); return; }
+            RemoveFc27SteamFix();
+            Log("FC 27: limpeza de sobras executada na abertura do app.");
+        } catch { }
+    }
+    // Fonte do stub do FC 27: exatamente o mesmo código do primeiro teste que
+    // registrou atividade no Discord (janela nativa "EA SPORTS FC 27", 380x190).
+    const string Fc27StubSource = @"
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+
+static class Program {
+    [STAThread]
+    static void Main() {
+        Application.EnableVisualStyles();
+        Form f = new Form();
+        f.Text = ""EA SPORTS FC 27"";
+        f.Size = new Size(380, 190);
+        f.FormBorderStyle = FormBorderStyle.FixedSingle;
+        f.MaximizeBox = false;
+        f.StartPosition = FormStartPosition.CenterScreen;
+        Label l = new Label();
+        l.Text = ""Simulacao de atividade\nEA SPORTS FC 27 (appid 4080220)\n\nDeixe esta janela aberta.\nFeche para encerrar."";
+        l.Dock = DockStyle.Fill;
+        l.TextAlign = ContentAlignment.MiddleCenter;
+        f.Controls.Add(l);
+        Application.Run(f);
+    }
+}
+";
+    static string FindCsc() {
+        string windir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        string[] candidatos = {
+            Path.Combine(windir, "Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"),
+            Path.Combine(windir, "Microsoft.NET\\Framework\\v4.0.30319\\csc.exe")
+        };
+        foreach (string c in candidatos) if (File.Exists(c)) return c;
+        return null;
+    }
+    // Compila o stub do FC 27 e o entrega em targetExe. Falso quando csc não
+    // existe ou o destino está travado (neste caso o chamador encerra FC27 e tenta de novo).
+    static bool CompileFc27Stub(string targetExe) {
+        try {
+            string csc = FindCsc();
+            if (csc == null) return false;
+            string src = Path.Combine(Path.GetTempPath(), "fc27_stub.cs");
+            string tmp = Path.Combine(Path.GetTempPath(), "fc27_stub.exe");
+            File.WriteAllText(src, Fc27StubSource, new System.Text.UTF8Encoding(false));
+            ProcessStartInfo psi = new ProcessStartInfo(csc, "/nologo /target:winexe /out:\"" + tmp + "\" /r:System.Windows.Forms.dll /r:System.Drawing.dll \"" + src + "\"");
+            psi.UseShellExecute = false; psi.CreateNoWindow = true;
+            using (Process p = Process.Start(psi)) {
+                if (p == null || !p.WaitForExit(60000)) { try { if (p != null && !p.HasExited) p.Kill(); } catch { } return false; }
+            }
+            if (!File.Exists(tmp)) return false;
+            File.Copy(tmp, targetExe, true);
+            try { File.Delete(tmp); File.Delete(src); } catch { }
+            return true;
+        } catch (IOException) { return false; }
+          catch (Exception) { return false; }
+    }
+    // Reabre a Steam depois dos arquivos já criados, replicando a condição do
+    // primeiro teste: a Steam relendo o manifest com tudo no lugar. Roda em
+    // segundo plano para não travar a interface.
+    static void RestartSteamForFc27() {
+        try {
+            string steam = SteamRootPath();
+            if (steam == null) return;
+            string exe = Path.Combine(steam, "steam.exe");
+            if (!File.Exists(exe)) return;
+            if (Process.GetProcessesByName("steam").Length == 0) return;
+            Process.Start(new ProcessStartInfo(exe, "-shutdown") { UseShellExecute = false, CreateNoWindow = true });
+            for (int i = 0; i < 30; i++) {
+                System.Threading.Thread.Sleep(1000);
+                if (Process.GetProcessesByName("steam").Length == 0) break;
+            }
+            if (Process.GetProcessesByName("steam").Length == 0) Process.Start(exe);
+        } catch { }
+    }
     [STAThread] static void Main(string[] args) {
         Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
         if (args.Length >= 3 && args[0] == "--process") {
             int parentPid = 0; if (args.Length >= 4) int.TryParse(args[3], out parentPid);
+            // FC 27: o Discord não tem executável na lista oficial e reconhece a
+            // atividade pela janela com o título estilizado do jogo ("EA SPORTS
+            // FC 27", em caixa alta). Sessão do FC 27 usa janela nativa simples
+            // em vez da barrinha compacta, que não registra no client.
+            if (IsFc27Id(args[2])) {
+                Form stub = new Form {
+                    Text = "EA SPORTS FC 27", Size = new Size(380, 190),
+                    FormBorderStyle = FormBorderStyle.FixedSingle, MaximizeBox = false,
+                    StartPosition = FormStartPosition.CenterScreen,
+                    BackColor = Skin.Background, ForeColor = Skin.Text
+                };
+                Label texto = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Skin.Text, Font = new Font("Segoe UI", 10f), Text = "Simulação de atividade\nEA SPORTS FC 27 (appid 4080220)\n\nDeixe esta janela aberta.\nFeche para encerrar." };
+                stub.Controls.Add(texto);
+                // Segunda janela com a grafia estilizada da loja (com o símbolo de
+                // marca): cobre as duas formas de nome que o client pode casar.
+                Form loja = new Form {
+                    Text = "EA SPORTS FC\u2122 27", Size = new Size(380, 110),
+                    FormBorderStyle = FormBorderStyle.FixedSingle, MaximizeBox = false,
+                    StartPosition = FormStartPosition.Manual,
+                    BackColor = Skin.Surface, ForeColor = Skin.Text
+                };
+                Label sub = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Skin.Muted, Font = new Font("Segoe UI", 9f), Text = "Atividade registrada — deixe esta janela aberta tambem." };
+                loja.Controls.Add(sub);
+                Rectangle area = Screen.PrimaryScreen.WorkingArea;
+                loja.SetBounds(area.Right - 404, area.Bottom - 134, 380, 110);
+                stub.FormClosed += delegate { try { loja.Close(); } catch { } };
+                Timer vigia = new Timer { Interval = 1000 };
+                vigia.Tick += delegate {
+                    if (parentPid <= 0) return;
+                    try { using (Process parent = Process.GetProcessById(parentPid)) { if (parent.HasExited) stub.Close(); } }
+                    catch (ArgumentException) { stub.Close(); } catch { }
+                };
+                vigia.Start();
+                loja.Show();
+                ApplicationContext contexto = new ApplicationContext { MainForm = stub };
+                Application.Run(contexto);
+                return;
+            }
+            if (args.Length >= 5 && args[4] == "--silent") {
+                while (true) {
+                    try { using (Process parent = Process.GetProcessById(parentPid)) { if (parent.HasExited) return; } }
+                    catch { return; }
+                    System.Threading.Thread.Sleep(1000);
+                }
+            }
             DateTime childStart = DateTime.Now;
             DarkWindow f = new DarkWindow { Text = args[1], Size = new Size(240, 48), ShowInTaskbar = true, StartPosition = FormStartPosition.CenterScreen, BackColor = Skin.Background, ForeColor = Skin.Text, Font = new Font("Segoe UI", 9), AutoScaleMode = AutoScaleMode.None };
             // Sessao ultracompacta: uma unica linha, arrastavel e com botao fechar.
@@ -530,6 +842,8 @@ class BeakoPresence : DarkWindow {
             return;
         }
         CleanupOrphanSessions();
+        CleanupStaleFc27Fix();
+        Log("App iniciado (Windows " + System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3) + " com correção FC 27).");
         Application.Run(new BeakoPresence());
     }
     static Label Title(string text, DockStyle dock, int width) { return new Label { Text = text, Dock = dock, Width = width, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Skin.Text, Font = new Font("Segoe UI Semibold", 15f), Margin = new Padding(0) }; }
@@ -599,7 +913,7 @@ class BeakoPresence : DarkWindow {
         right.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
         right.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         right.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
-        right.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        right.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         right.Controls.Add(Title("Jogos marcados", DockStyle.Fill, 0), 0, 0);
         FlatPanel markedPanel = new FlatPanel { Dock = DockStyle.Fill, Radius = 5, BackColor = Skin.Card, Padding = new Padding(10), Margin = new Padding(0, 2, 0, 8) };
         TableLayoutPanel markedLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, BackColor = Skin.Card };
@@ -637,6 +951,53 @@ class BeakoPresence : DarkWindow {
         TableLayoutPanel stopButtons = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Skin.Background, Margin = new Padding(0) }; stopButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); stopButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         stop.Text = "Parar selecionados"; all.Text = "Parar todos"; Style((DarkButton)stop, false); Style((DarkButton)all, false); ((DarkButton)stop).HoverBorder = Skin.Danger; ((DarkButton)all).HoverBorder = Skin.Danger;
         stop.Margin = new Padding(0, 8, 8, 0); all.Margin = new Padding(0, 8, 0, 0); stopButtons.Controls.Add(stop, 0, 0); stopButtons.Controls.Add(all, 1, 0); right.Controls.Add(stopButtons, 0, 4);
+        // ---- ferramentas: logs, diagnóstico e atualização online do app
+        TableLayoutPanel tools = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Skin.Background, Margin = new Padding(0) };
+        tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        DarkButton logsBtn = new DarkButton(), diagBtn = new DarkButton();
+        logsBtn.Text = "Logs"; diagBtn.Text = "Diagnóstico";
+        Style((DarkButton)logsBtn, false); Style((DarkButton)diagBtn, false);
+        logsBtn.Margin = new Padding(0, 2, 5, 0); diagBtn.Margin = new Padding(5, 2, 0, 0);
+        tools.Controls.Add(logsBtn, 0, 0); tools.Controls.Add(diagBtn, 1, 0);
+        right.Controls.Add(tools, 0, 5);
+        logsBtn.Click += delegate {
+            try {
+                if (!File.Exists(LogPath)) Log("Log aberto pela primeira vez.");
+                Process.Start(new ProcessStartInfo(LogPath) { UseShellExecute = true });
+            } catch (Exception ex) { status.Text = "Não foi possível abrir o log: " + ex.Message; }
+        };
+        diagBtn.Click += delegate {
+            using (DarkWindow dialog = new DarkWindow { Text = "Diagnóstico", Size = new Size(640, 500), StartPosition = FormStartPosition.CenterParent, Font = new Font("Segoe UI", 10) }) {
+                TableLayoutPanel painel = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(22), RowCount = 2, ColumnCount = 1 };
+                painel.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); painel.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+                TextBox text = new TextBox { Text = BuildDiagnostics(), Multiline = true, ReadOnly = true, BorderStyle = BorderStyle.None, BackColor = Skin.Background, ForeColor = Color.FromArgb(231, 237, 245), Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical, Font = new Font("Consolas", 9.5f) };
+                DarkButton ok = new DarkButton { Text = "Fechar", Dock = DockStyle.Fill, BackColor = Skin.Green, ForeColor = Color.FromArgb(10, 40, 28), FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.OK };
+                painel.Controls.Add(text, 0, 0); painel.Controls.Add(ok, 0, 1); dialog.Controls.Add(painel); dialog.AddChrome("Diagnóstico", false); dialog.AcceptButton = ok; dialog.ShowDialog(this);
+            }
+        };
+        Func<Task> checkAppUpdate = async delegate {
+            try {
+                string text = await Download("https://api.github.com/repos/Niltonjuniornzx/Beako-Presence/releases/latest");
+                var release = json.DeserializeObject(text) as Dictionary<string, object>;
+                string tag = release != null && release.ContainsKey("tag_name") ? Convert.ToString(release["tag_name"]) : "";
+                // A tag do release acompanha a versão do app Linux (ex.: v3.7.3),
+                // mas o app Windows pode ser mais antigo dentro do mesmo release.
+                // Comparamos pela versão do asset "Beako-Presence-Windows-<ver>.zip".
+                string oficial = "";
+                int pos = text.IndexOf("Beako-Presence-Windows-", StringComparison.Ordinal);
+                if (pos >= 0) {
+                    int fim = text.IndexOf(".zip", pos, StringComparison.Ordinal);
+                    if (fim > pos) oficial = text.Substring(pos + 23, fim - pos - 23);
+                }
+                Version local = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version, nova;
+                if (oficial.Length == 0) status.Text = "Sem release Windows no GitHub (tag " + tag + ").";
+                else if (Version.TryParse(oficial, out nova) && nova > local) {
+                    status.Text = "Nova versão oficial disponível: " + nova.ToString(3) + ".";
+                    Log("Atualização oficial disponível no GitHub: " + nova.ToString(3) + " (local " + local.ToString(3) + ").");
+                    ShowNotice("Atualização disponível", "Há uma versão Windows mais recente no GitHub: " + nova.ToString(3) + " (esta cópia é " + local.ToString(3) + ").\n\nA versão oficial não inclui a correção do FC 27 desta cópia. Consulte https://github.com/Niltonjuniornzx/Beako-Presence/releases/latest para baixar e substituir o executável.");
+                } else status.Text = "App em dia (" + local.ToString(3) + "; oficial Windows mais recente: " + oficial + ").";
+            } catch (Exception ex) { status.Text = "Falha ao verificar atualização: " + ex.Message; Log("Falha ao verificar atualização: " + ex.Message); }
+        };
         content.Controls.Add(right, 1, 0); body.Controls.Add(content, 0, 1);
         // Layout responsivo: empilha as secoes quando a janela fica estreita.
         // Em larguras intermediarias, reserva mais espaco para os controles da direita.
@@ -686,7 +1047,12 @@ class BeakoPresence : DarkWindow {
         content.SizeChanged += delegate { updateResponsiveLayout(); };
         Shown += delegate { updateResponsiveLayout(); };
         Controls.Add(body);
-        list.SelectedIndexChanged += delegate { int n = list.SelectedItems.Count; selectedCount.Text = n == 0 ? "Selecione os jogos para iniciar uma atividade" : n == 1 ? "1 jogo selecionado" : n + " jogos selecionados"; if (!restoring) SaveSettings(); RefreshMarked(); UpdateButtons(); };
+        list.SelectedIndexChanged += delegate {
+            int n = list.SelectedItems.Count, estimated = list.SelectedItems.Count(g => g.EstimatedExe);
+            selectedCount.Text = n == 0 ? "Selecione os jogos para iniciar uma atividade" : n == 1 ? "1 jogo selecionado" : n + " jogos selecionados";
+            if (estimated > 0) selectedCount.Text += " · " + estimated + " sem processo Windows cadastrado";
+            if (!restoring) SaveSettings(); RefreshMarked(); UpdateButtons();
+        };
         active.SelectedIndexChanged += delegate { UpdateButtons(); };
         search.TextChanged += delegate { Filter(); }; start.Click += delegate { Launch(); }; stop.Click += delegate {
             List<Game> targets = active.SelectedItems.ToList();
@@ -695,15 +1061,22 @@ class BeakoPresence : DarkWindow {
         }; all.Click += delegate { StopAll(); };
         sync.Click += async delegate { await Sync(); };
         timer.Interval = 2500; timer.Tick += delegate {
-            foreach (string id in running.Keys.ToArray()) { bool exited = false; try { exited = running[id].HasExited; } catch { exited = true; } if (exited) { running[id].Dispose(); running.Remove(id); started.Remove(id); runningNames.Remove(id); RefreshActive(); } }
+            bool changed = false;
+            foreach (string id in running.Keys.ToArray()) {
+                foreach (Process process in running[id].ToArray()) { bool exited = false; try { exited = process.HasExited; } catch { exited = true; } if (exited) { process.Dispose(); running[id].Remove(process); changed = true; } }
+                if (running[id].Count == 0) { bool eraFc27 = IsFc27Id(id); running.Remove(id); started.Remove(id); runningNames.Remove(id); changed = true; if (eraFc27) RemoveFc27SteamFix(); }
+            }
+            if (changed) RefreshActive();
             if (running.Count > 0) active.Invalidate(); UpdateWorkspace(); session.Text = running.Count == 0 ? "Nenhuma sessão ativa" : running.Count == 1 ? "1 sessão ativa" : running.Count + " sessões ativas";
-        }; timer.Start(); LoadSettings(); FormClosing += delegate { timer.Stop(); SaveSettings(); StopAll(); }; UpdateButtons();
+        }; timer.Start(); LoadSettings(); Filter(); FormClosing += delegate { Log("App encerrando; encerrando todas as sessões."); timer.Stop(); SaveSettings(); StopAll(); }; UpdateButtons();
         Shown += async delegate {
+            Task updateCheck = checkAppUpdate();
             string cache = Path.Combine(Root, "catalog.json");
             if (!File.Exists(cache) && File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "catalog.json"))) cache = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "catalog.json");
             if (File.Exists(cache)) { try { Parse(File.ReadAllText(cache)); Filter(); status.Text = "Catálogo carregado."; } catch (Exception ex) { status.Text = "Cache inválido: " + ex.Message; selectedCount.Text = status.Text; } }
             // Atualiza sozinho quando não há cache ou ele tem mais de 7 dias.
             if (games.Count == 0 || (DateTime.Now - File.GetLastWriteTime(cache)).TotalDays > 7) await Sync();
+            await updateCheck;
         };
     }
     async Task<string> Download(string url) {
@@ -725,20 +1098,64 @@ class BeakoPresence : DarkWindow {
         List<Game> next = new List<Game>();
         foreach (object item in data) {
             try {
-            var entry = item as Dictionary<string, object>; if (entry == null || !entry.ContainsKey("executables") || !entry.ContainsKey("id") || !entry.ContainsKey("name")) continue;
-            var exes = entry["executables"] as object[]; if (exes == null) continue;
-            var win = exes.OfType<Dictionary<string, object>>().Where(e => e.ContainsKey("os") && Convert.ToString(e["os"]) == "win32" && e.ContainsKey("name")).OrderBy(e => e.ContainsKey("is_launcher") && Convert.ToBoolean(e["is_launcher"])).ToList();
-            foreach (var exe in win) {
-                string id = Convert.ToString(entry["id"]), name = Convert.ToString(exe["name"]);
-                if (!id.All(char.IsDigit) || id.Length == 0 || !SafeExe(name)) continue;
-                next.Add(new Game { Id = id, Name = Convert.ToString(entry["name"]), Exe = name, IconHash = entry.ContainsKey("icon") ? Convert.ToString(entry["icon"]) : iconIndex != null && iconIndex.ContainsKey(id) ? Convert.ToString(iconIndex[id]) : "" }); break;
-            }
+            var entry = item as Dictionary<string, object>; if (entry == null || !entry.ContainsKey("id") || !entry.ContainsKey("name")) continue;
+            string id = Convert.ToString(entry["id"]), gameName = Convert.ToString(entry["name"]);
+            if (String.IsNullOrWhiteSpace(id) || !id.All(char.IsDigit) || String.IsNullOrWhiteSpace(gameName)) continue;
+            var exes = entry.ContainsKey("executables") ? entry["executables"] as object[] : null;
+            var win = (exes ?? new object[0]).OfType<Dictionary<string, object>>().Where(e => e.ContainsKey("os") && new[] { "win32", "windows", "win64" }.Contains(Convert.ToString(e["os"]).ToLowerInvariant()) && e.ContainsKey("name")).OrderBy(e => e.ContainsKey("is_launcher") && Convert.ToBoolean(e["is_launcher"])).ToList();
+            string[] executableNames = win.Select(e => Convert.ToString(e["name"])).Where(SafeExe).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            bool estimated = executableNames.Length == 0;
+            string iconHash = entry.ContainsKey("icon_hash") ? Convert.ToString(entry["icon_hash"]) : entry.ContainsKey("icon") ? Convert.ToString(entry["icon"]) : iconIndex != null && iconIndex.ContainsKey(id) ? Convert.ToString(iconIndex[id]) : "";
+            next.Add(new Game { Id = id, Name = gameName, Exe = executableNames.FirstOrDefault() ?? "", Exes = executableNames, EstimatedExe = estimated, IconHash = iconHash });
             } catch (ArgumentException) { continue; }
               catch (InvalidCastException) { continue; }
               catch (FormatException) { continue; }
         }
+        MergeCommunityPaths(next);
+        ApplyKnownWindowsExecutables(next);
         if (next.Count == 0) throw new IOException("A resposta não contém jogos Windows válidos.");
         games = next.OrderBy(g => g.Name).ToList();
+    }
+    static void ApplyKnownWindowsExecutables(List<Game> catalog) {
+        // Discord currently publishes FC 27 without Windows executable names.
+        // Keep this known process mapping local so a catalog sync does not erase it.
+        Game fc27 = catalog.FirstOrDefault(g => g.Id == "1531874756096295054" || NormalizeGameName(g.Name) == "easportsfc27");
+        if (fc27 == null) return;
+        fc27.Exes = new[] { "EA SPORTS FC 27/FC27.exe" }.Concat(fc27.Exes ?? new string[0]).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        fc27.Exe = fc27.Exes[0];
+        fc27.EstimatedExe = false;
+        fc27.CommunityPath = true;
+    }
+    static string NormalizeGameName(string value) {
+        return new string((value ?? "").ToLowerInvariant().Where(Char.IsLetterOrDigit).ToArray());
+    }
+    void MergeCommunityPaths(List<Game> catalog) {
+        try {
+            string path = Path.Combine(Root, "community-paths.json");
+            if (!File.Exists(path)) path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "community-paths.json");
+            if (!File.Exists(path)) return;
+            var root = json.DeserializeObject(File.ReadAllText(path)) as Dictionary<string, object>;
+            object[] entries;
+            if (root == null || !root.ContainsKey("entries") || (entries = root["entries"] as object[]) == null) return;
+            foreach (object raw in entries) {
+                var entry = raw as Dictionary<string, object>; if (entry == null || !entry.ContainsKey("name") || !entry.ContainsKey("path")) continue;
+                if (entry.ContainsKey("template") && Convert.ToBoolean(entry["template"])) continue;
+                string name = Convert.ToString(entry["name"]), primary = Convert.ToString(entry["path"]);
+                List<string> paths = new List<string>();
+                if (SafeExe(primary)) paths.Add(primary);
+                object[] alternatives = entry.ContainsKey("alts") ? entry["alts"] as object[] : null;
+                if (alternatives != null) foreach (object candidate in alternatives) { string alt = Convert.ToString(candidate); if (SafeExe(alt) && !paths.Contains(alt, StringComparer.OrdinalIgnoreCase)) paths.Add(alt); }
+                if (String.IsNullOrWhiteSpace(name) || paths.Count == 0) continue;
+                string key = NormalizeGameName(name);
+                Game existing = catalog.FirstOrDefault(g => NormalizeGameName(g.Name) == key);
+                if (existing == null) {
+                    catalog.Add(new Game { Id = "community-" + key, Name = name, Exe = paths[0], Exes = paths.ToArray(), EstimatedExe = false, CommunityPath = true });
+                } else {
+                    existing.Exes = paths.Concat(existing.Exes ?? new string[0]).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                    existing.Exe = existing.Exes[0]; existing.EstimatedExe = false; existing.CommunityPath = true;
+                }
+            }
+        } catch { /* Community supplement is optional; keep the official catalog usable. */ }
     }
     static bool SafeExe(string name) {
         // Dados de terceiros podem conter caracteres que fazem Path.IsPathRooted lancar ArgumentException.
@@ -753,7 +1170,7 @@ class BeakoPresence : DarkWindow {
 
     void Filter() {
         list.BeginUpdate(); list.Items.Clear();
-        foreach (Game g in games.Where(g => (g.Name + " " + g.Exe).IndexOf(search.Text.Trim(), StringComparison.OrdinalIgnoreCase) >= 0)) list.Items.Add(g);
+        foreach (Game g in games.Where(g => (g.Name + " " + String.Join(" ", g.Exes ?? new[] { g.Exe })).IndexOf(search.Text.Trim(), StringComparison.OrdinalIgnoreCase) >= 0)) list.Items.Add(g);
         list.EndUpdate(); catalogCount.Text = games.Count == 0 ? "Catálogo não carregado" : (list.Items.Count == games.Count ? games.Count + " jogos" : list.Items.Count + " de " + games.Count + " jogos");
         if (savedSelection.Count > 0 && games.Count > 0) {
             restoring = true;
@@ -804,10 +1221,20 @@ class BeakoPresence : DarkWindow {
     async Task Sync() {
         if (busy) return; busy = true; sync.Enabled = false; status.Text = "Baixando catálogo do Discord...";
         try {
-            string text = await Download("https://raw.githubusercontent.com/Niltonjuniornzx/dcgames/main/data/catalog.json"); Parse(text);
+            string text = await Download("https://discord.com/api/v10/applications/detectable");
+            try {
+                string communityText = await Download("https://raw.githubusercontent.com/Sinnisterly/DiscordQuestCompleter/main/dqc/data/overrides.json");
+                var supplement = json.DeserializeObject(communityText) as Dictionary<string, object>;
+                if (supplement != null && supplement.ContainsKey("entries") && supplement["entries"] is object[]) {
+                    string communityCache = Path.Combine(Root, "community-paths.json");
+                    File.WriteAllText(communityCache + ".tmp", communityText); File.Copy(communityCache + ".tmp", communityCache, true); File.Delete(communityCache + ".tmp");
+                }
+            } catch { /* Use the bundled or previously cached community paths when this source is unavailable. */ }
+            Parse(text);
             string cache = Path.Combine(Root, "catalog.json"); File.WriteAllText(cache + ".tmp", text); File.Copy(cache + ".tmp", cache, true); File.Delete(cache + ".tmp");
-            Filter(); status.Text = games.Count + " jogos com executável Windows disponíveis."; if (list.SelectedItems.Count == 0) selectedCount.Text = status.Text;
-        } catch (Exception ex) { status.Text = "Falha no catálogo: " + ex.Message; selectedCount.Text = status.Text; catalogCount.Text = games.Count == 0 ? "Falha ao carregar" : games.Count + " jogos (cache)"; }
+            Filter(); int known = games.Count(g => !g.EstimatedExe); status.Text = games.Count + " jogos carregados · " + known + " com processo Windows oficial · " + (games.Count - known) + " sem processo cadastrado."; if (list.SelectedItems.Count == 0) selectedCount.Text = status.Text;
+            Log("Catálogo sincronizado online: " + games.Count + " jogos, " + known + " com processo Windows.");
+        } catch (Exception ex) { status.Text = "Falha no catálogo: " + ex.Message; selectedCount.Text = status.Text; catalogCount.Text = games.Count == 0 ? "Falha ao carregar" : games.Count + " jogos (cache)"; Log("Falha na sincronização do catálogo: " + ex.Message); }
         finally { busy = false; sync.Enabled = true; }
     }
     void Launch() {
@@ -815,29 +1242,69 @@ class BeakoPresence : DarkWindow {
         if (selected.Length == 0) { status.Text = "Marque as caixas dos jogos que deseja abrir."; return; }
         List<string> errors = new List<string>(); int count = 0;
         foreach (Game game in selected) {
+            if (game.EstimatedExe) { errors.Add(game.Name + ": a lista detectável do Discord não informa processo Windows para este jogo."); continue; }
             if (running.ContainsKey(game.Id)) {
-                if (!running[game.Id].HasExited) continue;
+                if (running[game.Id].Any(p => { try { return !p.HasExited; } catch { return false; } })) continue;
                 Stop(game.Id);
             }
-            try {
-                string folder = Path.Combine(Root, "sessions", game.Id.Replace(":", "_")); string target = Path.GetFullPath(Path.Combine(folder, game.Exe.Replace('/', Path.DirectorySeparatorChar)));
-                if (!target.StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !SafeExe(game.Exe)) throw new IOException("Executável inválido.");
+            List<Process> children = new List<Process>();
+            // FC 27: sessão roda de steamapps\common (método Steam), não da pasta de sessões.
+            if (IsFc27(game)) {
+                string steamTarget = PrepareFc27SteamFix();
+                if (steamTarget != null) {
+                    Log("FC 27: estrutura Steam preparada (manifest + pasta em " + steamTarget + ").");
+                    try {
+                        // Stub idêntico ao do primeiro teste que registrou atividade:
+                        // executável minúsculo compilado na hora, sem argumentos e com
+                        // janela nativa "EA SPORTS FC 27". Cópia do app é só plano B.
+                        if (!CompileFc27Stub(steamTarget)) {
+                            Log("FC 27: compilação do stub falhou ou destino travado; encerrando FC27.exe antigo e tentando de novo.");
+                            foreach (Process stale in Process.GetProcessesByName("FC27")) { try { stale.Kill(); stale.WaitForExit(2000); } catch { } finally { try { stale.Dispose(); } catch { } } }
+                            if (!CompileFc27Stub(steamTarget)) File.Copy(Application.ExecutablePath, steamTarget, true);
+                        }
+                        Process child = Process.Start(new ProcessStartInfo(steamTarget) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(steamTarget) });
+                        if (child == null) throw new IOException("Processo não iniciado.");
+                        children.Add(child);
+                        Log("FC 27: sessão iniciada (FC27.exe rodando de steamapps); Steam sendo reaberta em segundo plano.");
+                        Task.Run((Action)RestartSteamForFc27);
+                    } catch (Exception ex) {
+                        Log("FC 27: falha ao iniciar sessão — " + ex.Message);
+                        errors.Add(game.Name + " (Steam): " + ex.Message + (ex is UnauthorizedAccessException ? " — feche o app e execute como administrador." : ""));
+                    }
+                    if (children.Count > 0) {
+                        running.Add(game.Id, children); started.Add(game.Id, DateTime.Now); runningNames[game.Id] = game.Name; count++;
+                        continue;
+                    }
+                }
+                // Sem Steam (ou jogo real instalado): cai no fluxo normal abaixo.
+            }
+            foreach (string exe in game.Exes ?? new[] { game.Exe }) try {
+                string folder = Path.Combine(Root, "sessions", game.Id.Replace(":", "_")); string target = Path.GetFullPath(Path.Combine(folder, exe.Replace('/', Path.DirectorySeparatorChar)));
+                if (!target.StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !SafeExe(exe)) throw new IOException("Executável inválido.");
                 Directory.CreateDirectory(Path.GetDirectoryName(target)); File.Copy(Application.ExecutablePath, target, true);
-                Process child = Process.Start(new ProcessStartInfo(target, "--process \"" + game.Name.Replace("\"", "'").TrimEnd('\\') + "\" " + game.Id + " " + Process.GetCurrentProcess().Id) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(target) });
+                string args = "--process \"" + game.Name.Replace("\"", "'").TrimEnd('\\') + "\" " + game.Id + " " + Process.GetCurrentProcess().Id + (children.Count == 0 ? "" : " --silent");
+                Process child = Process.Start(new ProcessStartInfo(target, args) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(target) });
                 if (child == null) throw new IOException("Processo não iniciado.");
-                running.Add(game.Id, child); started.Add(game.Id, DateTime.Now); runningNames[game.Id] = game.Name; count++;
-            } catch (Exception ex) { errors.Add(game.Name + ": " + ex.Message); }
+                children.Add(child);
+            } catch (Exception ex) { errors.Add(game.Name + " (" + exe + "): " + ex.Message); }
+            if (children.Count > 0) { running.Add(game.Id, children); started.Add(game.Id, DateTime.Now); runningNames[game.Id] = game.Name; count++; }
         }
         RefreshActive();
-        status.Text = count + " processos simulados · " + running.Count + " ativos. Verifique se o Discord reconheceu o jogo.";
+        bool fc27Rodando = selected.Any(g => IsFc27(g) && running.ContainsKey(g.Id));
+        status.Text = count + " jogos simulados com " + running.Values.Sum(p => p.Count) + " nomes de processo. Verifique o Discord." + (fc27Rodando ? " FC 27: Steam reaberta; se a quest não puxar, saia do Discord pela bandeja e reabra." : "");
         if (errors.Count > 0) ShowNotice("Falhas ao iniciar", String.Join("\n", errors));
     }
     void Stop(string id) {
         if (!running.ContainsKey(id)) return;
-        Process child = running[id];
-        try { if (!child.HasExited) { child.Kill(); child.WaitForExit(1500); } }
-        catch (Exception ex) { status.Text = "Erro ao parar: " + ex.Message; return; }
-        child.Dispose(); running.Remove(id); started.Remove(id); runningNames.Remove(id);
+        foreach (Process child in running[id].ToArray()) {
+            try { if (!child.HasExited) { child.Kill(); child.WaitForExit(1500); } }
+            catch (Exception ex) { status.Text = "Erro ao parar: " + ex.Message; }
+            finally { try { child.Dispose(); } catch { } }
+        }
+        string nomeSessao = runningNames.ContainsKey(id) ? runningNames[id] : id;
+        running.Remove(id); started.Remove(id); runningNames.Remove(id);
+        Log("Sessão encerrada: " + nomeSessao + " (" + id + ").");
+        if (IsFc27Id(id)) RemoveFc27SteamFix();
     }
     void UpdateWorkspace() {
         try {
@@ -864,4 +1331,5 @@ class BeakoPresence : DarkWindow {
     }
     void StopAll() { foreach (string id in running.Keys.ToArray()) Stop(id); RefreshActive(); }
 }
+
 
