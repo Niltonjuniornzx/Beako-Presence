@@ -1,6 +1,8 @@
 param(
     [string]$InstallPath,
-    [switch]$StartApp
+    [switch]$StartApp,
+    [bool]$CreateDesktopShortcut = $true,
+    [bool]$CreateStartMenuShortcut = $true
 )
 
 $ErrorActionPreference = 'Stop'
@@ -85,22 +87,26 @@ try {
     }
 
     $shell = New-Object -ComObject WScript.Shell
-    $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
-    New-Item -ItemType Directory -Path $startMenu -Force | Out-Null
-    $shortcut = $shell.CreateShortcut((Join-Path $startMenu 'Beako Presence.lnk'))
-    $shortcut.TargetPath = Join-Path $InstallPath 'BeakoPresence.exe'
-    $shortcut.WorkingDirectory = $InstallPath
-    $shortcut.IconLocation = Join-Path $InstallPath 'BeakoPresence.ico'
-    $shortcut.Description = 'Gerenciador de atividades para Discord'
-    $shortcut.Save()
+    if ($CreateStartMenuShortcut) {
+        $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+        New-Item -ItemType Directory -Path $startMenu -Force | Out-Null
+        $shortcut = $shell.CreateShortcut((Join-Path $startMenu 'Beako Presence.lnk'))
+        $shortcut.TargetPath = Join-Path $InstallPath 'BeakoPresence.exe'
+        $shortcut.WorkingDirectory = $InstallPath
+        $shortcut.IconLocation = Join-Path $InstallPath 'BeakoPresence.ico'
+        $shortcut.Description = 'Gerenciador de atividades para Discord'
+        $shortcut.Save()
+    }
 
-    $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory)
-    $desktopShortcut = $shell.CreateShortcut((Join-Path $desktop 'Beako Presence.lnk'))
-    $desktopShortcut.TargetPath = Join-Path $InstallPath 'BeakoPresence.exe'
-    $desktopShortcut.WorkingDirectory = $InstallPath
-    $desktopShortcut.IconLocation = Join-Path $InstallPath 'BeakoPresence.ico'
-    $desktopShortcut.Description = 'Gerenciador de atividades para Discord'
-    $desktopShortcut.Save()
+    if ($CreateDesktopShortcut) {
+        $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory)
+        $desktopShortcut = $shell.CreateShortcut((Join-Path $desktop 'Beako Presence.lnk'))
+        $desktopShortcut.TargetPath = Join-Path $InstallPath 'BeakoPresence.exe'
+        $desktopShortcut.WorkingDirectory = $InstallPath
+        $desktopShortcut.IconLocation = Join-Path $InstallPath 'BeakoPresence.ico'
+        $desktopShortcut.Description = 'Gerenciador de atividades para Discord'
+        $desktopShortcut.Save()
+    }
 
     $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\BeakoPresence'
     New-Item -Path $uninstallKey -Force | Out-Null
@@ -140,4 +146,3 @@ try {
     Show-Message ('A instalação falhou e os arquivos anteriores foram restaurados.' + [Environment]::NewLine + $_.Exception.Message) 'Beako Presence' Error
     exit 1
 }
-
