@@ -1,8 +1,9 @@
-Beako Presence Windows 3.6.4
+Beako Presence Windows 3.6.5
 
-Extraia todos os arquivos e abra BeakoPresence.exe. Na primeira abertura, ele
-instala para este usuário e cria atalhos na Área de Trabalho e no menu Iniciar.
-Para reinstalar manualmente, execute INSTALAR.bat.
+Baixe e abra BeakoPresence-Windows-3.6.5.exe. O instalador completo está
+embutido no executável; não é necessário baixar nem extrair o ZIP. A instalação
+cria atalhos na Área de Trabalho e no menu Iniciar. O ZIP é opcional e contém
+código-fonte e recursos de apoio.
 Requer Windows com .NET Framework 4.8.
 
 Interface no estilo da versão Linux: fundo escuro, verde, lista horizontal,
@@ -39,12 +40,12 @@ Ferramentas no painel direito:
 - Diagnóstico: mostra a versão do app, se o Discord está aberto, a raiz da
   Steam em uso, o manifest, o FC27.exe (presente e em execução), o ponteiro
   SteamPath do registro, as sessões ativas e as últimas linhas do log.
-Instalação: extraia todo o ZIP e abra BeakoPresence.exe. Na primeira abertura,
-o próprio executável inicia a instalação por usuário em
+Instalação alternativa pelo ZIP: abra BeakoPresence.exe para iniciar o
+instalador embutido ou execute INSTALAR.bat. A instalação é por usuário em
 %LOCALAPPDATA%\Programs\BeakoPresence, sem exigir administrador. Cria atalhos
-na Área de Trabalho e no menu Iniciar. Para atualizar manualmente, extraia o
-ZIP novo e abra BeakoPresence.exe; também é possível executar INSTALAR.bat.
-Configurações, logs e cache são preservados. O app confere a versão no
+na Área de Trabalho e no menu Iniciar. Se o instalador autocontido já estiver
+instalado, abri-lo novamente apenas inicia o app; um instalador mais novo
+atualiza a instalação. Configurações, logs e cache são preservados. O app confere a versão no
 GitHub ao iniciar. Ao escolher Atualizar agora, baixa o pacote, valida o
 SHA-256 publicado pelo GitHub, fecha e reabre o app após a instalação. A opção
 Depois adia o aviso desta versão.
@@ -61,6 +62,6 @@ O executável não possui assinatura digital.
 
 Código-fonte e COMPILAR.bat incluídos. A compilação usa o compilador do .NET Framework.
 
-Ícones 3.6.4: consulta pública pelo ID do aplicativo no Discord, carregamento assíncrono com duas consultas simultâneas e cache em %LOCALAPPDATA%/BeakoPresence/icons. Sem ícone ou sem rede, mostra iniciais. Não requer token. Ícones PNG personalizados podem ser colocados em icons/ID_DO_JOGO.png ao lado do executável.
+Ícones 3.6.5: consulta pública pelo ID do aplicativo no Discord, carregamento assíncrono com duas consultas simultâneas e cache em %LOCALAPPDATA%/BeakoPresence/icons. Sem ícone ou sem rede, mostra iniciais. Não requer token. Ícones PNG personalizados podem ser colocados em icons/ID_DO_JOGO.png ao lado do executável.
 Validado download e renderização do ícone do Valorant. Outros aplicativos dependem da disponibilidade do endpoint público.
 

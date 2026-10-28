@@ -51,10 +51,10 @@ try {
     } finally { $archive.Dispose() }
     [IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $packagePath)
 
-    foreach ($required in @('BeakoPresence.exe', 'INSTALAR.ps1', 'DESINSTALAR.ps1', 'ATUALIZAR.ps1', 'catalog.json')) {
+    foreach ($required in @('BeakoPresence.App.exe', 'BeakoPresence.exe', 'INSTALAR.ps1', 'DESINSTALAR.ps1', 'ATUALIZAR.ps1', 'catalog.json')) {
         if (-not (Test-Path -LiteralPath (Join-Path $packagePath $required) -PathType Leaf)) { throw "O pacote atualizado está incompleto: $required" }
     }
-    $packageVersion = (Get-Item -LiteralPath (Join-Path $packagePath 'BeakoPresence.exe')).VersionInfo.FileVersion
+    $packageVersion = (Get-Item -LiteralPath (Join-Path $packagePath 'BeakoPresence.App.exe')).VersionInfo.FileVersion
     if ($packageVersion -notlike ($Version + '.*') -and $packageVersion -ne $Version) {
         throw "A versão do executável ($packageVersion) não corresponde à versão publicada ($Version)."
     }

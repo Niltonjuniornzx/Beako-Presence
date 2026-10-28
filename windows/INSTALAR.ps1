@@ -19,8 +19,9 @@ if (-not $InstallPath.Equals($defaultInstallPath, [StringComparison]::OrdinalIgn
     exit 2
 }
 
+$appSourceName = if (Test-Path -LiteralPath (Join-Path $sourcePath 'BeakoPresence.App.exe') -PathType Leaf) { 'BeakoPresence.App.exe' } else { 'BeakoPresence.exe' }
 $required = @(
-    'BeakoPresence.exe', 'BeakoPresence.ico', 'BeakoPresence-Avatar.png',
+    $appSourceName, 'BeakoPresence.ico', 'BeakoPresence-Avatar.png',
     'catalog.json', 'community-paths.json', 'icon-index.json',
     'INSTALAR.bat', 'INSTALAR.ps1', 'DESINSTALAR.bat', 'DESINSTALAR.ps1', 'ATUALIZAR.ps1'
 )
@@ -30,7 +31,7 @@ foreach ($name in $required) {
         exit 2
     }
 }
-$exeBytes = [IO.File]::ReadAllBytes((Join-Path $sourcePath 'BeakoPresence.exe'))
+$exeBytes = [IO.File]::ReadAllBytes((Join-Path $sourcePath $appSourceName))
 if ($exeBytes.Length -lt 2 -or $exeBytes[0] -ne 0x4D -or $exeBytes[1] -ne 0x5A) {
     Show-Message 'O executável do pacote não passou na validação.' 'Beako Presence' Error
     exit 2
@@ -46,10 +47,17 @@ if (Test-Path -LiteralPath (Join-Path $InstallPath 'BeakoPresence.exe')) {
     }
 }
 
-$files = @($required)
+$installFiles = New-Object System.Collections.Generic.List[object]
+foreach ($relative in $required | Where-Object { $_ -ne $appSourceName }) {
+    $installFiles.Add([pscustomobject]@{ Source = $relative; Target = $relative })
+}
+$installFiles.Add([pscustomobject]@{ Source = $appSourceName; Target = 'BeakoPresence.exe' })
 $sourceIcons = Join-Path $sourcePath 'icons'
 if (Test-Path -LiteralPath $sourceIcons -PathType Container) {
-    $files += Get-ChildItem -LiteralPath $sourceIcons -File -Recurse | ForEach-Object { $_.FullName.Substring($sourcePath.Length + 1) }
+    Get-ChildItem -LiteralPath $sourceIcons -File -Recurse | ForEach-Object {
+        $relative = $_.FullName.Substring($sourcePath.Length + 1)
+        $installFiles.Add([pscustomobject]@{ Source = $relative; Target = $relative })
+    }
 }
 $transaction = Join-Path $env:TEMP ('BeakoPresence-install-' + [Guid]::NewGuid().ToString('N'))
 $backupRoot = Join-Path $transaction 'backup'
@@ -58,10 +66,10 @@ $changed = New-Object System.Collections.Generic.List[object]
 try {
     New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
     New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null
-    foreach ($relative in $files) {
-        $source = Join-Path $sourcePath $relative
-        $target = Join-Path $InstallPath $relative
-        $backup = Join-Path $backupRoot $relative
+    foreach ($file in $installFiles) {
+        $source = Join-Path $sourcePath $file.Source
+        $target = Join-Path $InstallPath $file.Target
+        $backup = Join-Path $backupRoot $file.Target
         if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { continue }
         $parent = Split-Path -Parent $target
         New-Item -ItemType Directory -Path $parent -Force | Out-Null

@@ -20,9 +20,9 @@ using System.Runtime.InteropServices;
 [assembly: System.Reflection.AssemblyCopyright("Copyright © 2026 Beako")]
 [assembly: System.Reflection.AssemblyTrademark("")]
 [assembly: System.Reflection.AssemblyCulture("")]
-[assembly: System.Reflection.AssemblyVersion("3.6.4.0")]
-[assembly: System.Reflection.AssemblyFileVersion("3.6.4.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("3.6.4")]
+[assembly: System.Reflection.AssemblyVersion("3.6.5.0")]
+[assembly: System.Reflection.AssemblyFileVersion("3.6.5.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("3.6.5")]
 
 static class Skin {
     public static readonly Color Background = Color.FromArgb(13, 15, 17);
