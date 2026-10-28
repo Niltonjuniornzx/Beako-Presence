@@ -2,18 +2,18 @@
 
 Versões definitivas fornecidas pelo autor, mantidas separadas no mesmo repositório:
 
-- **Windows 3.6.2** — [arquivos do Windows](windows/), incluindo `BeakoPresence.exe`, código C#, ícones e catálogo offline.
+- **Windows 3.6.3** — [arquivos do Windows](windows/), incluindo instalador, atualizador, desinstalador, executável, código C#, ícones e catálogo offline.
 - **Linux 3.7.3** — [arquivos do Linux](linux/), incluindo `beako.py`, `instalar.sh`, ícones e catálogo offline.
 
 ## Download
 
-**[Abrir a release oficial — Windows 3.6.2 / Linux 3.7.3](https://github.com/Niltonjuniornzx/Beako-Presence/releases/tag/v3.7.4)**
+**[Abrir a release oficial — Windows 3.6.3 / Linux 3.7.3](https://github.com/Niltonjuniornzx/Beako-Presence/releases/tag/v3.7.5)**
 
 Arquivos publicados automaticamente pelo GitHub Actions:
 
-- `Beako-Presence-Windows-3.6.2.zip` — pacote completo para Windows; após extrair, abra `BeakoPresence.exe`.
+- `Beako-Presence-Windows-3.6.3.zip` — pacote completo para Windows; extraia e execute `INSTALAR.bat` para instalar ou atualizar.
 - `Beako-Presence-Linux-3.7.3.zip` — pacote completo para Linux; após extrair, execute `bash instalar.sh`.
-- `BeakoPresence-Windows-3.6.2.exe` — executável Windows separado (recomendamos o ZIP com os recursos).
+- `BeakoPresence-Windows-3.6.3.exe` — executável Windows portátil separado (recomendamos o ZIP com os recursos e instalador).
 - `SHA256SUMS.txt` — hashes para conferência dos arquivos.
 
 O processo de publicação **não recompila nem altera os programas definitivos**: valida os arquivos no repositório e publica ZIPs contendo cópias exatas. O executável Windows não possui assinatura digital.

@@ -20,9 +20,9 @@ using System.Runtime.InteropServices;
 [assembly: System.Reflection.AssemblyCopyright("Copyright © 2026 Beako")]
 [assembly: System.Reflection.AssemblyTrademark("")]
 [assembly: System.Reflection.AssemblyCulture("")]
-[assembly: System.Reflection.AssemblyVersion("3.6.2.0")]
-[assembly: System.Reflection.AssemblyFileVersion("3.6.2.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("3.6.2")]
+[assembly: System.Reflection.AssemblyVersion("3.6.3.0")]
+[assembly: System.Reflection.AssemblyFileVersion("3.6.3.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("3.6.3")]
 
 static class Skin {
     public static readonly Color Background = Color.FromArgb(13, 15, 17);
@@ -735,6 +735,7 @@ static class Program {
     }
     [STAThread] static void Main(string[] args) {
         Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
+        if (args.Length == 1 && args[0] == "--cleanup-fc27") { CleanupStaleFc27Fix(); return; }
         if (args.Length >= 3 && args[0] == "--process") {
             int parentPid = 0; if (args.Length >= 4) int.TryParse(args[3], out parentPid);
             // FC 27: o Discord não tem executável na lista oficial e reconhece a
@@ -982,29 +983,55 @@ static class Program {
                 string tag = release != null && release.ContainsKey("tag_name") ? Convert.ToString(release["tag_name"]) : "";
                 // A tag do release acompanha a versão do app Linux (ex.: v3.7.3),
                 // mas o app Windows pode ser mais antigo dentro do mesmo release.
-                // Comparamos pela versão do asset "Beako-Presence-Windows-<ver>.zip".
-                string oficial = "";
+                // Compara os assets Windows e usa o maior, mesmo se houver releases antigas.
+                string oficial = "", zipName = "", downloadUrl = "", digest = "";
                 Version nova = null;
                 const string assetPrefix = "Beako-Presence-Windows-";
-                int scan = 0, pos;
-                while ((pos = text.IndexOf(assetPrefix, scan, StringComparison.Ordinal)) >= 0) {
-                    int inicio = pos + assetPrefix.Length;
-                    int fim = text.IndexOf(".zip", inicio, StringComparison.Ordinal);
-                    if (fim < 0) { scan = inicio; continue; }
-                    string candidata = text.Substring(inicio, fim - inicio);
+                object[] assets = release != null && release.ContainsKey("assets") ? release["assets"] as object[] : null;
+                foreach (Dictionary<string, object> asset in (assets ?? new object[0]).OfType<Dictionary<string, object>>()) {
+                    string name = asset.ContainsKey("name") ? Convert.ToString(asset["name"]) : "";
+                    if (!name.StartsWith(assetPrefix, StringComparison.Ordinal) || !name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) continue;
+                    string candidata = name.Substring(assetPrefix.Length, name.Length - assetPrefix.Length - 4);
                     Version versaoCandidata;
                     if (Version.TryParse(candidata, out versaoCandidata) && (nova == null || versaoCandidata > nova)) {
                         nova = versaoCandidata;
                         oficial = candidata;
+                        zipName = name;
+                        downloadUrl = asset.ContainsKey("browser_download_url") ? Convert.ToString(asset["browser_download_url"]) : "";
+                        digest = asset.ContainsKey("digest") ? Convert.ToString(asset["digest"]) : "";
                     }
-                    scan = fim + 4;
                 }
                 Version local = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
                 if (oficial.Length == 0) status.Text = "Sem release Windows no GitHub (tag " + tag + ").";
                 else if (nova > local) {
                     status.Text = "Nova versão oficial disponível: " + nova.ToString(3) + ".";
                     Log("Atualização oficial disponível no GitHub: " + nova.ToString(3) + " (local " + local.ToString(3) + ").");
-                    ShowNotice("Atualização disponível", "Há uma versão Windows mais recente no GitHub: " + nova.ToString(3) + " (esta cópia é " + local.ToString(3) + ").\n\nA versão oficial não inclui a correção do FC 27 desta cópia. Consulte https://github.com/Niltonjuniornzx/Beako-Presence/releases/latest para baixar e substituir o executável.");
+                    string avisoPath = Path.Combine(Root, "update-deferred.txt");
+                    string adiada = ""; try { adiada = File.ReadAllText(avisoPath).Trim(); } catch { }
+                    if (adiada != nova.ToString(3) && ShowUpdatePrompt(nova.ToString(3))) {
+                        if (digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase)) digest = digest.Substring(7);
+                        string helper = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ATUALIZAR.ps1");
+                        if (File.Exists(helper) && digest.Length == 64 && downloadUrl.StartsWith("https://github.com/", StringComparison.OrdinalIgnoreCase)) {
+                            try {
+                                string installPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "BeakoPresence");
+                                string powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+                                string arguments = "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File " + QuoteArgument(helper) +
+                                    " -DownloadUrl " + QuoteArgument(downloadUrl) + " -Sha256 " + QuoteArgument(digest) +
+                                    " -ZipName " + QuoteArgument(zipName) + " -Version " + QuoteArgument(nova.ToString(3)) +
+                                    " -InstallPath " + QuoteArgument(installPath) + " -WaitForProcessId " + Process.GetCurrentProcess().Id;
+                                Process.Start(new ProcessStartInfo(powershell, arguments) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden });
+                                status.Text = "O app será fechado para instalar a atualização e reaberto em seguida.";
+                                Log("Atualização " + nova.ToString(3) + " iniciada; o instalador validará SHA-256 e preservará os dados do usuário.");
+                                Close();
+                            } catch (Exception ex) { status.Text = "Não foi possível iniciar a atualização: " + ex.Message; Log("Falha ao iniciar atualização: " + ex.Message); }
+                        } else {
+                            File.WriteAllText(avisoPath, nova.ToString(3));
+                            ShowNotice("Atualização disponível", "Baixe " + zipName + " em https://github.com/Niltonjuniornzx/Beako-Presence/releases/latest, extraia o ZIP e execute INSTALAR.bat. O instalador preserva suas configurações e atualiza os arquivos do app.");
+                            Process.Start(new ProcessStartInfo("https://github.com/Niltonjuniornzx/Beako-Presence/releases/latest") { UseShellExecute = true });
+                        }
+                    } else if (adiada != nova.ToString(3)) {
+                        try { Directory.CreateDirectory(Root); File.WriteAllText(avisoPath, nova.ToString(3)); } catch { }
+                    }
                 } else status.Text = "App em dia (" + local.ToString(3) + "; oficial Windows mais recente: " + oficial + ").";
             } catch (Exception ex) { status.Text = "Falha ao verificar atualização: " + ex.Message; Log("Falha ao verificar atualização: " + ex.Message); }
         };
@@ -1332,6 +1359,37 @@ static class Program {
             DarkButton ok = new DarkButton { Text = "Entendi", Dock = DockStyle.Fill, BackColor = Skin.Green, ForeColor = Color.FromArgb(10, 40, 28), FlatStyle = FlatStyle.Flat, DialogResult = DialogResult.OK };
             content.Controls.Add(text, 0, 0); content.Controls.Add(ok, 0, 1); dialog.Controls.Add(content); dialog.AddChrome(title, false); dialog.AcceptButton = ok; dialog.ShowDialog(this);
         }
+    }
+    bool ShowUpdatePrompt(string version) {
+        bool update = false;
+        using (DarkWindow dialog = new DarkWindow { Text = "Atualização disponível", Size = new Size(540, 250), StartPosition = FormStartPosition.CenterParent, Font = new Font("Segoe UI", 10) }) {
+            TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(22), RowCount = 2, ColumnCount = 1, BackColor = Skin.Background };
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
+            Label message = new Label { Text = "A versão " + version + " está disponível.\r\n\r\nSe você escolher atualizar, o app será fechado, o pacote será validado pelo SHA-256 do GitHub e instalado. Suas configurações e dados locais serão preservados.", Dock = DockStyle.Fill, ForeColor = Skin.Text, BackColor = Skin.Background, TextAlign = ContentAlignment.MiddleLeft };
+            TableLayoutPanel buttons = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Skin.Background };
+            buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58)); buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+            DarkButton install = new DarkButton { Text = "Atualizar agora", Margin = new Padding(0, 2, 6, 0) };
+            DarkButton later = new DarkButton { Text = "Depois", Margin = new Padding(6, 2, 0, 0) };
+            Style(install, true); Style(later, false);
+            install.Click += delegate { update = true; dialog.Close(); };
+            later.Click += delegate { dialog.Close(); };
+            buttons.Controls.Add(install, 0, 0); buttons.Controls.Add(later, 1, 0);
+            layout.Controls.Add(message, 0, 0); layout.Controls.Add(buttons, 0, 1);
+            dialog.Controls.Add(layout); dialog.AddChrome("Atualização disponível", false); dialog.AcceptButton = install; dialog.CancelButton = later; dialog.ShowDialog(this);
+        }
+        return update;
+    }
+    static string QuoteArgument(string value) {
+        System.Text.StringBuilder result = new System.Text.StringBuilder("\"");
+        int slashes = 0;
+        foreach (char c in value ?? "") {
+            if (c == '\\') { slashes++; continue; }
+            if (c == '"') result.Append('\\', slashes * 2 + 1).Append('"');
+            else result.Append('\\', slashes).Append(c);
+            slashes = 0;
+        }
+        result.Append('\\', slashes * 2).Append('"');
+        return result.ToString();
     }
     void RefreshActive() {
         string[] selected = active.SelectedItems.Cast<Game>().Select(g => g.Id).ToArray();
