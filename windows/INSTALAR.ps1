@@ -86,6 +86,14 @@ try {
     $shortcut.Description = 'Gerenciador de atividades para Discord'
     $shortcut.Save()
 
+    $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory)
+    $desktopShortcut = $shell.CreateShortcut((Join-Path $desktop 'Beako Presence.lnk'))
+    $desktopShortcut.TargetPath = Join-Path $InstallPath 'BeakoPresence.exe'
+    $desktopShortcut.WorkingDirectory = $InstallPath
+    $desktopShortcut.IconLocation = Join-Path $InstallPath 'BeakoPresence.ico'
+    $desktopShortcut.Description = 'Gerenciador de atividades para Discord'
+    $desktopShortcut.Save()
+
     $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\BeakoPresence'
     New-Item -Path $uninstallKey -Force | Out-Null
     $appVersion = (Get-Item -LiteralPath (Join-Path $InstallPath 'BeakoPresence.exe')).VersionInfo.FileVersion
@@ -103,7 +111,7 @@ try {
     if ($StartApp) {
         Start-Process -FilePath (Join-Path $InstallPath 'BeakoPresence.exe') -WorkingDirectory $InstallPath
     } else {
-        Show-Message ('Instalação concluída em:' + [Environment]::NewLine + $InstallPath + [Environment]::NewLine + [Environment]::NewLine + 'O atalho Beako Presence foi criado no menu Iniciar. Configurações e dados existentes foram preservados.') 'Beako Presence' Information
+        Show-Message ('Instalação concluída em:' + [Environment]::NewLine + $InstallPath + [Environment]::NewLine + [Environment]::NewLine + 'Atalhos criados na Área de Trabalho e no menu Iniciar. Configurações e dados existentes foram preservados.') 'Beako Presence' Information
     }
     Remove-Item -LiteralPath $transaction -Recurse -Force -ErrorAction SilentlyContinue
     exit 0

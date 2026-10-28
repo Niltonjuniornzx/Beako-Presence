@@ -41,7 +41,9 @@ if ($removeData -and (Test-Path -LiteralPath $appDataMarker -PathType Leaf)) {
 }
 
 $startMenuShortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Beako Presence.lnk'
+$desktopShortcut = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory)) 'Beako Presence.lnk'
 Remove-Item -LiteralPath $startMenuShortcut -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $desktopShortcut -Force -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\BeakoPresence' -Recurse -Force -ErrorAction SilentlyContinue
 
 $cleanupPath = Join-Path $env:TEMP ('BeakoPresence-uninstall-' + [Guid]::NewGuid().ToString('N') + '.ps1')

@@ -20,9 +20,9 @@ using System.Runtime.InteropServices;
 [assembly: System.Reflection.AssemblyCopyright("Copyright © 2026 Beako")]
 [assembly: System.Reflection.AssemblyTrademark("")]
 [assembly: System.Reflection.AssemblyCulture("")]
-[assembly: System.Reflection.AssemblyVersion("3.6.3.0")]
-[assembly: System.Reflection.AssemblyFileVersion("3.6.3.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("3.6.3")]
+[assembly: System.Reflection.AssemblyVersion("3.6.4.0")]
+[assembly: System.Reflection.AssemblyFileVersion("3.6.4.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("3.6.4")]
 
 static class Skin {
     public static readonly Color Background = Color.FromArgb(13, 15, 17);
@@ -490,6 +490,27 @@ class BeakoPresence : DarkWindow {
     // mas nao dispara a heuristica de "programa que se copia com outro nome e se executa" (padrao de dropper).
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool CreateHardLink(string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes);
     static string FormatSpan(TimeSpan t) { return ((int)t.TotalHours).ToString("00") + ":" + t.Minutes.ToString("00") + ":" + t.Seconds.ToString("00"); }
+    static bool IsInstalledCopy() {
+        string expected = Path.GetFullPath(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "BeakoPresence", "BeakoPresence.exe"));
+        return String.Equals(Path.GetFullPath(Application.ExecutablePath), expected, StringComparison.OrdinalIgnoreCase);
+    }
+    static bool StartBundleInstaller() {
+        string installer = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "INSTALAR.ps1");
+        if (!File.Exists(installer)) {
+            MessageBox.Show("Para instalar, extraia o ZIP completo e abra BeakoPresence.exe novamente. O executável separado não contém os arquivos do instalador.", "Beako Presence", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            try { Process.Start(new ProcessStartInfo("https://github.com/Niltonjuniornzx/Beako-Presence/releases/latest") { UseShellExecute = true }); } catch { }
+            return false;
+        }
+        try {
+            string powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+            string arguments = "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File " + QuoteArgument(installer) + " -StartApp";
+            Process.Start(new ProcessStartInfo(powershell, arguments) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden });
+            return true;
+        } catch (Exception ex) {
+            MessageBox.Show("Não foi possível iniciar a instalação: " + ex.Message, "Beako Presence", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return false;
+        }
+    }
     // Remove pastas e processos de sessão órfãos (sobras de crash/desligamento).
     // Roda só no app principal, antes da interface abrir. É conservador:
     // - pasta com EXE em execução é mantida;
@@ -736,6 +757,7 @@ static class Program {
     [STAThread] static void Main(string[] args) {
         Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
         if (args.Length == 1 && args[0] == "--cleanup-fc27") { CleanupStaleFc27Fix(); return; }
+        if (args.Length == 0 && !IsInstalledCopy()) { StartBundleInstaller(); return; }
         if (args.Length >= 3 && args[0] == "--process") {
             int parentPid = 0; if (args.Length >= 4) int.TryParse(args[3], out parentPid);
             // FC 27: o Discord não tem executável na lista oficial e reconhece a
