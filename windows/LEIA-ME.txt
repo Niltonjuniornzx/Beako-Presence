@@ -1,6 +1,6 @@
-Beako Presence Windows 3.6.7
+Beako Presence Windows 3.6.8
 
-Baixe e abra BeakoPresence-Windows-3.6.7.exe. O instalador completo está
+Baixe e abra BeakoPresence-Windows-3.6.8.exe. O instalador completo está
 embutido no executável; não é necessário baixar nem extrair o ZIP. A instalação
 cria atalhos na Área de Trabalho e no menu Iniciar. O ZIP é opcional e contém
 código-fonte e recursos de apoio.
@@ -62,5 +62,5 @@ O executável não possui assinatura digital.
 
 Código-fonte e COMPILAR.bat incluídos. A compilação usa o compilador do .NET Framework.
 
-Ícones 3.6.7: consulta pública pelo ID do aplicativo no Discord, carregamento assíncrono com duas consultas simultâneas e cache em %LOCALAPPDATA%/BeakoPresence/icons. Sem ícone ou sem rede, mostra iniciais. Não requer token. Ícones PNG personalizados podem ser colocados em icons/ID_DO_JOGO.png ao lado do executável.
+Ícones 3.6.8: consulta pública pelo ID do aplicativo no Discord, carregamento assíncrono com duas consultas simultâneas e cache em %LOCALAPPDATA%/BeakoPresence/icons. Sem ícone ou sem rede, mostra iniciais. Não requer token. Ícones PNG personalizados podem ser colocados em icons/ID_DO_JOGO.png ao lado do executável.
 Validado download e renderização do ícone do Valorant. Outros aplicativos dependem da disponibilidade do endpoint público.

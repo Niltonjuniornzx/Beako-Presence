@@ -1,5 +1,6 @@
 param(
     [string]$InstallPath,
+    [string]$LogPath,
     [switch]$StartApp,
     [bool]$CreateDesktopShortcut = $true,
     [bool]$CreateStartMenuShortcut = $true
@@ -11,12 +12,18 @@ Add-Type -AssemblyName System.Windows.Forms
 function Show-Message([string]$Message, [string]$Title, [System.Windows.Forms.MessageBoxIcon]$Icon) {
     [System.Windows.Forms.MessageBox]::Show($Message, $Title, [System.Windows.Forms.MessageBoxButtons]::OK, $Icon) | Out-Null
 }
+function Write-InstallLog([string]$Message) {
+    if ([string]::IsNullOrWhiteSpace($LogPath)) { return }
+    try { [IO.File]::AppendAllText($LogPath, ('[' + [DateTime]::Now.ToString('s') + '] ' + $Message + [Environment]::NewLine), [Text.UTF8Encoding]::new($false)) } catch { }
+}
 
 $sourcePath = [IO.Path]::GetFullPath($PSScriptRoot)
+Write-InstallLog 'Instalador iniciado.'
 $defaultInstallPath = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs\BeakoPresence'))
 if ([string]::IsNullOrWhiteSpace($InstallPath)) { $InstallPath = $defaultInstallPath }
 $InstallPath = [IO.Path]::GetFullPath($InstallPath)
 if (-not $InstallPath.Equals($defaultInstallPath, [StringComparison]::OrdinalIgnoreCase)) {
+    Write-InstallLog ('Caminho de instalação recusado: ' + $InstallPath)
     Show-Message 'O instalador só pode atualizar a instalação do usuário em LocalAppData\Programs\BeakoPresence.' 'Beako Presence' Error
     exit 2
 }
@@ -29,12 +36,14 @@ $required = @(
 )
 foreach ($name in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $sourcePath $name) -PathType Leaf)) {
+        Write-InstallLog ('Arquivo obrigatório ausente: ' + $name)
         Show-Message "Arquivo obrigatório ausente: $name`nExtraia o ZIP completo antes de instalar." 'Beako Presence' Error
         exit 2
     }
 }
 $exeBytes = [IO.File]::ReadAllBytes((Join-Path $sourcePath $appSourceName))
 if ($exeBytes.Length -lt 2 -or $exeBytes[0] -ne 0x4D -or $exeBytes[1] -ne 0x5A) {
+    Write-InstallLog 'O executável não passou na validação MZ.'
     Show-Message 'O executável do pacote não passou na validação.' 'Beako Presence' Error
     exit 2
 }
@@ -85,6 +94,7 @@ try {
         $target = Join-Path $InstallPath $file.Target
         $backup = Join-Path $backupRoot $file.Target
         if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { continue }
+        Write-InstallLog ('Copiando ' + $file.Source + ' para ' + $target)
         $parent = Split-Path -Parent $target
         New-Item -ItemType Directory -Path $parent -Force | Out-Null
         $hadOriginal = Test-Path -LiteralPath $target -PathType Leaf
@@ -137,11 +147,16 @@ try {
     if ($StartApp) {
         Start-Process -FilePath (Join-Path $InstallPath 'BeakoPresence.exe') -WorkingDirectory $InstallPath
     } else {
-        Show-Message ('Instalação concluída em:' + [Environment]::NewLine + $InstallPath + [Environment]::NewLine + [Environment]::NewLine + 'Atalhos criados na Área de Trabalho e no menu Iniciar. Configurações e dados existentes foram preservados.') 'Beako Presence' Information
+        $shortcutNames = @()
+        if ($CreateDesktopShortcut) { $shortcutNames += 'Área de Trabalho' }
+        if ($CreateStartMenuShortcut) { $shortcutNames += 'menu Iniciar' }
+        $shortcutSummary = if ($shortcutNames.Count) { 'Atalhos criados: ' + ($shortcutNames -join ' e ') + '.' } else { 'Nenhum atalho foi criado.' }
+        Show-Message ('Instalação concluída em:' + [Environment]::NewLine + $InstallPath + [Environment]::NewLine + [Environment]::NewLine + $shortcutSummary + ' Configurações e dados existentes foram preservados.') 'Beako Presence' Information
     }
     Remove-Item -LiteralPath $transaction -Recurse -Force -ErrorAction SilentlyContinue
     exit 0
 } catch {
+    Write-InstallLog ('ERRO: ' + $_.Exception.ToString())
     $changedItems = $changed.ToArray()
     [Array]::Reverse($changedItems)
     foreach ($item in $changedItems) {
@@ -155,6 +170,5 @@ try {
         } catch { }
     }
     Remove-Item -LiteralPath $transaction -Recurse -Force -ErrorAction SilentlyContinue
-    Show-Message ('A instalação falhou e os arquivos anteriores foram restaurados.' + [Environment]::NewLine + $_.Exception.Message) 'Beako Presence' Error
     exit 1
 }

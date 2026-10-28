@@ -9,9 +9,9 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("Instalador do Beako Presence")]
 [assembly: AssemblyProduct("Beako Presence")]
 [assembly: AssemblyCompany("Beako")]
-[assembly: AssemblyVersion("3.6.7.0")]
-[assembly: AssemblyFileVersion("3.6.7.0")]
-[assembly: AssemblyInformationalVersion("3.6.7")]
+[assembly: AssemblyVersion("3.6.8.0")]
+[assembly: AssemblyFileVersion("3.6.8.0")]
+[assembly: AssemblyInformationalVersion("3.6.8")]
 
 static class BeakoSetup {
     static readonly Color Ink = Color.FromArgb(31, 36, 43);
@@ -89,12 +89,17 @@ static class BeakoSetup {
             using (FileStream input = File.OpenRead(app)) if (input.Read(header, 0, 2) != 2 || header[0] != 0x4D || header[1] != 0x5A) throw new InvalidDataException("O executável do aplicativo é inválido.");
             status.Text = "Instalando arquivos e criando os atalhos..."; window.Refresh();
             string powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-            string args = "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File " + Quote(installer) + " -CreateDesktopShortcut " + desktop.Checked.ToString().ToLowerInvariant() + " -CreateStartMenuShortcut " + startMenu.Checked.ToString().ToLowerInvariant();
+            string logPath = Path.Combine(Path.GetTempPath(), "BeakoPresence-install-" + Guid.NewGuid().ToString("N") + ".log");
+            string args = "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File " + Quote(installer) + " -LogPath " + Quote(logPath) + " -CreateDesktopShortcut " + desktop.Checked.ToString().ToLowerInvariant() + " -CreateStartMenuShortcut " + startMenu.Checked.ToString().ToLowerInvariant();
             using (Process process = Process.Start(new ProcessStartInfo(powershell, args) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden, WorkingDirectory = package })) {
                 if (process == null) throw new IOException("O instalador não pôde ser iniciado.");
                 process.WaitForExit();
                 if (process.ExitCode == 3) throw new IOException("A instalação foi cancelada ou o aplicativo continua aberto. Feche o Beako Presence e clique em Instalar novamente.");
-                if (process.ExitCode != 0) throw new IOException("O instalador encontrou um problema ao copiar os arquivos. Tente novamente; seus arquivos anteriores foram preservados.");
+                if (process.ExitCode != 0) {
+                    string detail = File.Exists(logPath) ? File.ReadAllText(logPath) : "O instalador não gerou detalhes do erro.";
+                    if (detail.Length > 2400) detail = detail.Substring(detail.Length - 2400);
+                    throw new IOException("Seus arquivos anteriores foram preservados. Detalhes: " + Environment.NewLine + detail + Environment.NewLine + "Log: " + logPath);
+                }
             }
             if (launch.Checked) Process.Start(new ProcessStartInfo(Path.Combine(InstallPath, "BeakoPresence.exe")) { UseShellExecute = true, WorkingDirectory = InstallPath });
             MessageBox.Show("Instalação concluída com sucesso.\n\nO Beako Presence está pronto para uso.", "Beako Presence", MessageBoxButtons.OK, MessageBoxIcon.Information);
