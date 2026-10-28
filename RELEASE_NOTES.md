@@ -1,4 +1,4 @@
-# Beako Presence — Windows 3.6.2 / Linux 3.7.3
+# Beako Presence v3.7.4 — Windows 3.6.2 / Linux 3.7.3
 
 ## Windows 3.6.2
 

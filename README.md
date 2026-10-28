@@ -7,7 +7,7 @@ Versões definitivas fornecidas pelo autor, mantidas separadas no mesmo reposit�
 
 ## Download
 
-**[Abrir a release oficial — Windows 3.6.2 / Linux 3.7.3](https://github.com/Niltonjuniornzx/Beako-Presence/releases/tag/v3.7.3)**
+**[Abrir a release oficial — Windows 3.6.2 / Linux 3.7.3](https://github.com/Niltonjuniornzx/Beako-Presence/releases/tag/v3.7.4)**
 
 Arquivos publicados automaticamente pelo GitHub Actions:
 

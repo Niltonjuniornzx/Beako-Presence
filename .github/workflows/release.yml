@@ -112,7 +112,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             TAG=$(printf '%s' "$GITHUB_REF" | sed 's@^refs/tags/@@')
           else
-            TAG="v3.7.3"
+            TAG="v3.7.4"
           fi
           TITLE="Beako Presence — Windows 3.6.2 / Linux 3.7.3"
           if gh release view "$TAG" >/dev/null 2>&1; then
