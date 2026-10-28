@@ -15,7 +15,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.ref, 'refs/tags/v') ||
       (github.ref == 'refs/heads/main' &&
-       github.event.head_commit.message == 'release: publish Windows 3.6.6 and Linux 3.7.3')
+       github.event.head_commit.message == 'release: publish Windows 3.6.7 and Linux 3.7.3')
     runs-on: ubuntu-latest
     steps:
       - name: Baixar repositorio
@@ -79,7 +79,7 @@ jobs:
           dist.mkdir(exist_ok=True)
 
           archives = {
-              "windows": "Beako-Presence-Windows-3.6.6.zip",
+              "windows": "Beako-Presence-Windows-3.6.7.zip",
               "linux": "Beako-Presence-Linux-3.7.3.zip",
           }
 
@@ -106,7 +106,7 @@ jobs:
                       assert archived.read(rel) == path.read_bytes(), "Arquivo alterado: " + rel
               print(filename, len(files), "arquivos, todos iguais aos originais")
 
-          copy2("windows/BeakoPresence.exe", dist / "BeakoPresence-Windows-3.6.6.exe")
+          copy2("windows/BeakoPresence.exe", dist / "BeakoPresence-Windows-3.6.7.exe")
           with (dist / "SHA256SUMS.txt").open("w", encoding="ascii") as output:
               for path in sorted(dist.iterdir()):
                   if path.name == "SHA256SUMS.txt":
@@ -123,9 +123,9 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             TAG=$(printf '%s' "$GITHUB_REF" | sed 's@^refs/tags/@@')
           else
-            TAG="v3.7.8"
+            TAG="v3.7.9"
           fi
-          TITLE="Beako Presence — Windows 3.6.6 / Linux 3.7.3"
+          TITLE="Beako Presence — Windows 3.6.7 / Linux 3.7.3"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
             gh release edit "$TAG" --title "$TITLE" --notes-file RELEASE_NOTES.md
@@ -141,6 +141,6 @@ jobs:
       - name: Disponibilizar pacotes no Actions
         uses: actions/upload-artifact@v4
         with:
-          name: Beako-Presence-Windows-3.6.6-Linux-3.7.3
+          name: Beako-Presence-Windows-3.6.7-Linux-3.7.3
           path: dist/*
           if-no-files-found: error

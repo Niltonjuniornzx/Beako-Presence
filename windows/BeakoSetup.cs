@@ -9,9 +9,9 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("Instalador do Beako Presence")]
 [assembly: AssemblyProduct("Beako Presence")]
 [assembly: AssemblyCompany("Beako")]
-[assembly: AssemblyVersion("3.6.6.0")]
-[assembly: AssemblyFileVersion("3.6.6.0")]
-[assembly: AssemblyInformationalVersion("3.6.6")]
+[assembly: AssemblyVersion("3.6.7.0")]
+[assembly: AssemblyFileVersion("3.6.7.0")]
+[assembly: AssemblyInformationalVersion("3.6.7")]
 
 static class BeakoSetup {
     static readonly Color Ink = Color.FromArgb(31, 36, 43);
@@ -93,7 +93,8 @@ static class BeakoSetup {
             using (Process process = Process.Start(new ProcessStartInfo(powershell, args) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden, WorkingDirectory = package })) {
                 if (process == null) throw new IOException("O instalador não pôde ser iniciado.");
                 process.WaitForExit();
-                if (process.ExitCode != 0) throw new IOException("A instalação não foi concluída. Feche o aplicativo e tente novamente.");
+                if (process.ExitCode == 3) throw new IOException("A instalação foi cancelada ou o aplicativo continua aberto. Feche o Beako Presence e clique em Instalar novamente.");
+                if (process.ExitCode != 0) throw new IOException("O instalador encontrou um problema ao copiar os arquivos. Tente novamente; seus arquivos anteriores foram preservados.");
             }
             if (launch.Checked) Process.Start(new ProcessStartInfo(Path.Combine(InstallPath, "BeakoPresence.exe")) { UseShellExecute = true, WorkingDirectory = InstallPath });
             MessageBox.Show("Instalação concluída com sucesso.\n\nO Beako Presence está pronto para uso.", "Beako Presence", MessageBoxButtons.OK, MessageBoxIcon.Information);

@@ -44,8 +44,20 @@ if (Test-Path -LiteralPath (Join-Path $InstallPath 'BeakoPresence.exe')) {
         try { $_.Path -and [IO.Path]::GetFullPath($_.Path).Equals((Join-Path $InstallPath 'BeakoPresence.exe'), [StringComparison]::OrdinalIgnoreCase) } catch { $false }
     }
     if ($running) {
-        Show-Message 'Feche o Beako Presence instalado e execute INSTALAR.bat novamente. Configurações, logs e cache serão preservados.' 'Beako Presence' Information
-        exit 3
+        $answer = [System.Windows.Forms.MessageBox]::Show('O Beako Presence está aberto. Deseja fechá-lo agora para continuar a instalação? O aplicativo será encerrado normalmente, e suas configurações serão preservadas.', 'Beako Presence em execução', [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question)
+        if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) { exit 3 }
+        foreach ($process in $running) {
+            try {
+                if ($process.MainWindowHandle -ne [IntPtr]::Zero) { $null = $process.CloseMainWindow() }
+                if (-not $process.WaitForExit(15000)) {
+                    Show-Message 'O aplicativo ainda está aberto. Feche-o manualmente e clique em Instalar novamente.' 'Beako Presence em execução' Warning
+                    exit 3
+                }
+            } catch {
+                Show-Message 'Não foi possível fechar o aplicativo automaticamente. Feche-o e clique em Instalar novamente.' 'Beako Presence em execução' Warning
+                exit 3
+            }
+        }
     }
 }
 
