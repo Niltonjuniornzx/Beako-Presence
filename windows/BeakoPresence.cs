@@ -984,14 +984,24 @@ static class Program {
                 // mas o app Windows pode ser mais antigo dentro do mesmo release.
                 // Comparamos pela versão do asset "Beako-Presence-Windows-<ver>.zip".
                 string oficial = "";
-                int pos = text.IndexOf("Beako-Presence-Windows-", StringComparison.Ordinal);
-                if (pos >= 0) {
-                    int fim = text.IndexOf(".zip", pos, StringComparison.Ordinal);
-                    if (fim > pos) oficial = text.Substring(pos + 23, fim - pos - 23);
+                Version nova = null;
+                const string assetPrefix = "Beako-Presence-Windows-";
+                int scan = 0, pos;
+                while ((pos = text.IndexOf(assetPrefix, scan, StringComparison.Ordinal)) >= 0) {
+                    int inicio = pos + assetPrefix.Length;
+                    int fim = text.IndexOf(".zip", inicio, StringComparison.Ordinal);
+                    if (fim < 0) { scan = inicio; continue; }
+                    string candidata = text.Substring(inicio, fim - inicio);
+                    Version versaoCandidata;
+                    if (Version.TryParse(candidata, out versaoCandidata) && (nova == null || versaoCandidata > nova)) {
+                        nova = versaoCandidata;
+                        oficial = candidata;
+                    }
+                    scan = fim + 4;
                 }
-                Version local = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version, nova;
+                Version local = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
                 if (oficial.Length == 0) status.Text = "Sem release Windows no GitHub (tag " + tag + ").";
-                else if (Version.TryParse(oficial, out nova) && nova > local) {
+                else if (nova > local) {
                     status.Text = "Nova versão oficial disponível: " + nova.ToString(3) + ".";
                     Log("Atualização oficial disponível no GitHub: " + nova.ToString(3) + " (local " + local.ToString(3) + ").");
                     ShowNotice("Atualização disponível", "Há uma versão Windows mais recente no GitHub: " + nova.ToString(3) + " (esta cópia é " + local.ToString(3) + ").\n\nA versão oficial não inclui a correção do FC 27 desta cópia. Consulte https://github.com/Niltonjuniornzx/Beako-Presence/releases/latest para baixar e substituir o executável.");
